@@ -1,0 +1,16 @@
+[default]
+description = "Default permissions for the camera plugin"
+permissions = [
+  "allow-start-preview",
+  "allow-stop-preview",
+  "allow-capture",
+  "allow-flip-camera",
+  "allow-set-flash",
+  "allow-set-zoom",
+  "allow-start-recording",
+  "allow-stop-recording",
+  "allow-save-to-gallery",
+  "allow-request-permissions",
+  "allow-check-permissions",
+  "allow-open-app-settings",
+]
