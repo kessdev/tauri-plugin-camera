@@ -186,17 +186,106 @@ idiomatic on the web (desktop).
 
 ## Testing
 
-The plugin ships with unit tests for every layer:
+The plugin ships unit tests for every layer. They are **pure logic** tests — no camera
+hardware, emulator or device is required.
 
-| Layer   | Command                | What it covers                                          |
-|---------|------------------------|---------------------------------------------------------|
-| Rust    | `cargo test`           | Model (de)serialization and error types                 |
-| Android | `gradle test`          | Flash-mode mapping, zoom clamping, camera direction     |
-| iOS     | `swift test`           | Decoding of command options                             |
-| JS      | `npm test` (vitest)    | API signatures and mobile/desktop dispatch              |
+| Layer   | Test file                                  | Command        | Run from            | Requires                          |
+|---------|--------------------------------------------|----------------|---------------------|-----------------------------------|
+| Rust    | `src/models.rs` (inline tests)             | `cargo test`   | plugin root         | Rust + Cargo                      |
+| JS      | `guest-js/index.test.ts`                   | `npm test`     | plugin root         | Node.js 18+ + npm                 |
+| Android | `android/src/test/java/CameraPluginTest.kt`| `gradle test`  | `android/` (or generated app) | JDK 17+, Android SDK, Gradle |
+| iOS     | `ios/Tests/PluginTests/PluginTests.swift`  | `swift test`   | `ios/`              | macOS + Xcode                     |
 
-> Android and iOS tests require the respective toolchains (`gradle`/Android SDK and
-> macOS with Xcode). They are intentionally pure logic (no emulator/device needed).
+### Prerequisites
+
+**Rust**
+
+- [Rust](https://rustup.rs) (stable toolchain).
+- Optional — to verify the crate compiles for mobile:
+  ```bash
+  rustup target add aarch64-linux-android
+  ```
+
+**JavaScript**
+
+- [Node.js](https://nodejs.org) 18+ and npm (or pnpm/yarn).
+
+**Android (Kotlin)**
+
+- JDK 17 or newer.
+- Android SDK with `platforms/android-36` and `build-tools`.
+- Gradle (or the generated project's wrapper).
+
+**iOS (Swift)**
+
+- macOS with Xcode. iOS tests cannot run on Linux or Windows.
+
+### Rust
+
+```bash
+cd tauri-plugin-camera
+cargo test
+```
+
+Covers model (de)serialization and the error types. To also verify the crate
+compiles against the Android target:
+
+```bash
+cargo check --target aarch64-linux-android
+```
+
+### JavaScript
+
+```bash
+cd tauri-plugin-camera
+npm install
+npm test
+```
+
+`npm test` runs Vitest; the tests cover the API signatures and the mobile/desktop
+dispatch. To validate types and generate the bindings:
+
+```bash
+npm run build
+```
+
+### Android (Kotlin)
+
+The JUnit tests cover flash-mode mapping, zoom clamping and camera direction.
+
+Running them requires the full Tauri Android pipeline. The plugin's `android/`
+module is a Gradle library built as part of the generated app project, and the
+Gradle config (`tauri.settings.gradle`) is only generated during a Tauri Android
+build — not by `tauri android init` (that only lays down the base project). The
+sequence is:
+
+```bash
+cd tauri-plugin-camera/examples/tauri-app
+npm install
+npm run tauri android init
+npm run tauri android build     # generates tauri.settings.gradle and compiles
+cd src-tauri/gen/android
+./gradlew test
+```
+
+Requires JDK 17+, Android SDK + NDK, and `platforms/android-36` — or set
+`compileSdk = 35` in `android/build.gradle.kts` if your SDK only goes up to 35.
+`tauri android build` builds a release APK (needs a signing key); `tauri android dev`
+builds a debug APK but requires a connected device/emulator. Either one generates
+`tauri.settings.gradle`, after which `./gradlew test` works.
+
+### iOS (Swift)
+
+macOS only. The XCTest tests cover decoding of the command options.
+
+```bash
+cd tauri-plugin-camera/ios
+swift test
+```
+
+> `swift test` resolves the `Tauri` package from `ios/Package.swift`, which points at
+> `../.tauri/tauri-api`. That folder is generated when the iOS project is set up
+> (`tauri ios init`).
 
 ## Full API
 

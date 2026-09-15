@@ -97,6 +97,7 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
   private var imageCapture: ImageCapture? = null
   private var videoCapture: VideoCapture<Recorder>? = null
   private var recording: Recording? = null
+  private var recordingStartedAtNanos = 0L
 
   private var executor: ExecutorService = Executors.newSingleThreadExecutor()
 
@@ -380,13 +381,14 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
       .withAudioEnabled()
 
     stopRecordingInvoke = null
+    recordingStartedAtNanos = System.nanoTime()
     recording = pendingRecording.start(executor) { event ->
       when (event) {
         is VideoRecordEvent.Finalize -> {
           if (event.hasError()) {
             stopRecordingInvoke?.reject(event.cause?.message ?: "Video recording failed")
           } else {
-            val durationSec = event.outputResults.durationNs / 1_000_000_000.0
+            val durationSec = (System.nanoTime() - recordingStartedAtNanos) / 1_000_000_000.0
             val jsObject = JSObject()
             jsObject.put("path", file.absolutePath)
             jsObject.put("duration", durationSec)
