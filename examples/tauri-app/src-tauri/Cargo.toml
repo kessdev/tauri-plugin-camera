@@ -19,5 +19,5 @@ tauri-build = { version = "2.6.3", default-features = false , features = [] }
 
 [dependencies]
 tauri = { version = "2.11.3", features = [] }
-tauri-plugin-camera = { path = "../../../" }
+tauri-plugin-camera-kessdev = { path = "../../../" }
 

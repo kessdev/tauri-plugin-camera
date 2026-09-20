@@ -11,7 +11,7 @@
     requestPermissions,
     getPreviewStream,
     convertFileSrc
-  } from 'tauri-plugin-camera'
+  } from 'tauri-plugin-camera-kessdev'
 
   let log = $state('')
   let photoSrc = $state('')

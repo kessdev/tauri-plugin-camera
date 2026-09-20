@@ -23,17 +23,17 @@ Add the Rust crate to `src-tauri/Cargo.toml`:
 
 ```toml
 [dependencies]
-tauri-plugin-camera = "0.1.0"
+tauri-plugin-camera-kessdev = "0.1.0"
 # or from a git/path source:
-# tauri-plugin-camera = { path = "../tauri-plugin-camera" }
+# tauri-plugin-camera-kessdev = { path = "../tauri-plugin-camera" }
 ```
 
 Add the JavaScript bindings:
 
 ```bash
-npm add tauri-plugin-camera
-# pnpm add tauri-plugin-camera
-# yarn add tauri-plugin-camera
+npm add tauri-plugin-camera-kessdev
+# pnpm add tauri-plugin-camera-kessdev
+# yarn add tauri-plugin-camera-kessdev
 ```
 
 ## Register
@@ -43,7 +43,7 @@ In `src-tauri/src/lib.rs`:
 ```rust
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_camera::init())
+        .plugin(tauri_plugin_camera_kessdev::init())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -116,7 +116,7 @@ import {
   requestPermissions,
   getPreviewStream,
   convertFileSrc
-} from 'tauri-plugin-camera'
+} from 'tauri-plugin-camera-kessdev'
 ```
 
 ### Preview
@@ -276,16 +276,24 @@ builds a debug APK but requires a connected device/emulator. Either one generate
 
 ### iOS (Swift)
 
-macOS only. The XCTest tests cover decoding of the command options.
+The XCTest tests cover decoding of the command options. Testing requires **full
+Xcode** — Command Line Tools is not enough, because the plugin imports UIKit,
+AVFoundation and Photos, which need the iOS SDK and the Simulator.
+
+The plugin is iOS-only, so it cannot be built with `swift test` (that targets
+macOS, where UIKit is unavailable, and the `Tauri` package referenced by
+`ios/Package.swift` is only created by the Tauri iOS setup). Validate the Swift
+code by building the iOS app:
 
 ```bash
-cd tauri-plugin-camera/ios
-swift test
+cd tauri-plugin-camera/examples/tauri-app
+npm install
+npm run tauri ios init
+npm run tauri ios build       # compiles the Swift plugin for iOS
 ```
 
-> `swift test` resolves the `Tauri` package from `ios/Package.swift`, which points at
-> `../.tauri/tauri-api`. That folder is generated when the iOS project is set up
-> (`tauri ios init`).
+To run the XCTest suite itself, use `xcodebuild test` against an iOS Simulator
+destination from the generated Xcode project (`src-tauri/gen/apple`).
 
 ## Full API
 

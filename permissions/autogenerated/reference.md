@@ -29,7 +29,7 @@ Default permissions for the camera plugin
 <tr>
 <td>
 
-`camera:allow-capture`
+`camera-kessdev:allow-capture`
 
 </td>
 <td>
@@ -42,7 +42,7 @@ Enables the capture command without any pre-configured scope.
 <tr>
 <td>
 
-`camera:deny-capture`
+`camera-kessdev:deny-capture`
 
 </td>
 <td>
@@ -55,7 +55,7 @@ Denies the capture command without any pre-configured scope.
 <tr>
 <td>
 
-`camera:allow-check-permissions`
+`camera-kessdev:allow-check-permissions`
 
 </td>
 <td>
@@ -68,7 +68,7 @@ Enables the check_permissions command without any pre-configured scope.
 <tr>
 <td>
 
-`camera:deny-check-permissions`
+`camera-kessdev:deny-check-permissions`
 
 </td>
 <td>
@@ -81,7 +81,7 @@ Denies the check_permissions command without any pre-configured scope.
 <tr>
 <td>
 
-`camera:allow-flip-camera`
+`camera-kessdev:allow-flip-camera`
 
 </td>
 <td>
@@ -94,7 +94,7 @@ Enables the flip_camera command without any pre-configured scope.
 <tr>
 <td>
 
-`camera:deny-flip-camera`
+`camera-kessdev:deny-flip-camera`
 
 </td>
 <td>
@@ -107,7 +107,7 @@ Denies the flip_camera command without any pre-configured scope.
 <tr>
 <td>
 
-`camera:allow-open-app-settings`
+`camera-kessdev:allow-open-app-settings`
 
 </td>
 <td>
@@ -120,7 +120,7 @@ Enables the open_app_settings command without any pre-configured scope.
 <tr>
 <td>
 
-`camera:deny-open-app-settings`
+`camera-kessdev:deny-open-app-settings`
 
 </td>
 <td>
@@ -133,7 +133,7 @@ Denies the open_app_settings command without any pre-configured scope.
 <tr>
 <td>
 
-`camera:allow-request-permissions`
+`camera-kessdev:allow-request-permissions`
 
 </td>
 <td>
@@ -146,7 +146,7 @@ Enables the request_permissions command without any pre-configured scope.
 <tr>
 <td>
 
-`camera:deny-request-permissions`
+`camera-kessdev:deny-request-permissions`
 
 </td>
 <td>
@@ -159,7 +159,7 @@ Denies the request_permissions command without any pre-configured scope.
 <tr>
 <td>
 
-`camera:allow-save-to-gallery`
+`camera-kessdev:allow-save-to-gallery`
 
 </td>
 <td>
@@ -172,7 +172,7 @@ Enables the save_to_gallery command without any pre-configured scope.
 <tr>
 <td>
 
-`camera:deny-save-to-gallery`
+`camera-kessdev:deny-save-to-gallery`
 
 </td>
 <td>
@@ -185,7 +185,7 @@ Denies the save_to_gallery command without any pre-configured scope.
 <tr>
 <td>
 
-`camera:allow-set-flash`
+`camera-kessdev:allow-set-flash`
 
 </td>
 <td>
@@ -198,7 +198,7 @@ Enables the set_flash command without any pre-configured scope.
 <tr>
 <td>
 
-`camera:deny-set-flash`
+`camera-kessdev:deny-set-flash`
 
 </td>
 <td>
@@ -211,7 +211,7 @@ Denies the set_flash command without any pre-configured scope.
 <tr>
 <td>
 
-`camera:allow-set-zoom`
+`camera-kessdev:allow-set-zoom`
 
 </td>
 <td>
@@ -224,7 +224,7 @@ Enables the set_zoom command without any pre-configured scope.
 <tr>
 <td>
 
-`camera:deny-set-zoom`
+`camera-kessdev:deny-set-zoom`
 
 </td>
 <td>
@@ -237,7 +237,7 @@ Denies the set_zoom command without any pre-configured scope.
 <tr>
 <td>
 
-`camera:allow-start-preview`
+`camera-kessdev:allow-start-preview`
 
 </td>
 <td>
@@ -250,7 +250,7 @@ Enables the start_preview command without any pre-configured scope.
 <tr>
 <td>
 
-`camera:deny-start-preview`
+`camera-kessdev:deny-start-preview`
 
 </td>
 <td>
@@ -263,7 +263,7 @@ Denies the start_preview command without any pre-configured scope.
 <tr>
 <td>
 
-`camera:allow-start-recording`
+`camera-kessdev:allow-start-recording`
 
 </td>
 <td>
@@ -276,7 +276,7 @@ Enables the start_recording command without any pre-configured scope.
 <tr>
 <td>
 
-`camera:deny-start-recording`
+`camera-kessdev:deny-start-recording`
 
 </td>
 <td>
@@ -289,7 +289,7 @@ Denies the start_recording command without any pre-configured scope.
 <tr>
 <td>
 
-`camera:allow-stop-preview`
+`camera-kessdev:allow-stop-preview`
 
 </td>
 <td>
@@ -302,7 +302,7 @@ Enables the stop_preview command without any pre-configured scope.
 <tr>
 <td>
 
-`camera:deny-stop-preview`
+`camera-kessdev:deny-stop-preview`
 
 </td>
 <td>
@@ -315,7 +315,7 @@ Denies the stop_preview command without any pre-configured scope.
 <tr>
 <td>
 
-`camera:allow-stop-recording`
+`camera-kessdev:allow-stop-recording`
 
 </td>
 <td>
@@ -328,7 +328,7 @@ Enables the stop_recording command without any pre-configured scope.
 <tr>
 <td>
 
-`camera:deny-stop-recording`
+`camera-kessdev:deny-stop-recording`
 
 </td>
 <td>

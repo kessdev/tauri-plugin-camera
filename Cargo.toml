@@ -1,12 +1,14 @@
 [package]
-name = "tauri-plugin-camera"
+name = "tauri-plugin-camera-kessdev"
 version = "0.1.0"
-authors = [ "You" ]
+authors = [ "kess" ]
 description = "Camera plugin for Tauri v2: photo capture, video recording and preview on Android, iOS and desktop."
+license = "MIT"
+repository = "https://github.com/kessdev/tauri-plugin-camera"
 edition = "2021"
 rust-version = "1.77.2"
-exclude = ["/examples", "/dist-js", "/guest-js", "/node_modules"]
-links = "tauri-plugin-camera"
+exclude = ["/examples", "/dist-js", "/guest-js", "/node_modules", "/.changes", "/.github"]
+links = "tauri-plugin-camera-kessdev"
 
 [dependencies]
 tauri = { version = "2.11.3" }

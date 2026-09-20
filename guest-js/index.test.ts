@@ -53,14 +53,14 @@ describe('mobile dispatch', () => {
       format: 'jpeg'
     })
     const photo = await capture({ flash: 'auto' })
-    expect(invokeMock).toHaveBeenCalledWith('plugin:camera|capture', { flash: 'auto' })
+    expect(invokeMock).toHaveBeenCalledWith('plugin:camera-kessdev|capture', { flash: 'auto' })
     expect(photo.path).toBe('/tmp/a.jpg')
   })
 
   it('startPreview invokes the mobile command', async () => {
     invokeMock.mockResolvedValue(undefined)
     await startPreview({ camera: 'front', windowed: true })
-    expect(invokeMock).toHaveBeenCalledWith('plugin:camera|start_preview', {
+    expect(invokeMock).toHaveBeenCalledWith('plugin:camera-kessdev|start_preview', {
       camera: 'front',
       windowed: true
     })
@@ -71,22 +71,22 @@ describe('mobile dispatch', () => {
     await flipCamera()
     await setFlash('on')
     await setZoom(2.5)
-    expect(invokeMock).toHaveBeenNthCalledWith(1, 'plugin:camera|flip_camera')
-    expect(invokeMock).toHaveBeenNthCalledWith(2, 'plugin:camera|set_flash', { mode: 'on' })
-    expect(invokeMock).toHaveBeenNthCalledWith(3, 'plugin:camera|set_zoom', { factor: 2.5 })
+    expect(invokeMock).toHaveBeenNthCalledWith(1, 'plugin:camera-kessdev|flip_camera')
+    expect(invokeMock).toHaveBeenNthCalledWith(2, 'plugin:camera-kessdev|set_flash', { mode: 'on' })
+    expect(invokeMock).toHaveBeenNthCalledWith(3, 'plugin:camera-kessdev|set_zoom', { factor: 2.5 })
   })
 
   it('requestPermissions delegates to the core helper', async () => {
     requestPermissionsMock.mockResolvedValue({ camera: 'granted' })
     const state = await requestCameraPermissions()
-    expect(requestPermissionsMock).toHaveBeenCalledWith('camera')
+    expect(requestPermissionsMock).toHaveBeenCalledWith('camera-kessdev')
     expect(state).toBe('granted')
   })
 
   it('checkPermissions delegates to the core helper', async () => {
     checkPermissionsMock.mockResolvedValue({ camera: 'denied' })
     const state = await checkCameraPermissions()
-    expect(checkPermissionsMock).toHaveBeenCalledWith('camera')
+    expect(checkPermissionsMock).toHaveBeenCalledWith('camera-kessdev')
     expect(state).toBe('denied')
   })
 })

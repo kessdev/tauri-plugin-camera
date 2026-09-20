@@ -1,4 +1,4 @@
-# tauri-plugin-camera (iOS)
+# tauri-plugin-camera-kessdev (iOS)
 
 Swift implementation of the camera plugin for iOS, using AVFoundation.
 

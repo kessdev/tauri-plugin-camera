@@ -143,7 +143,7 @@ function captureDesktopFrame(): Photo {
  */
 export async function startPreview(options?: StartPreviewOptions): Promise<void> {
   if (isMobile()) {
-    await invoke('plugin:camera|start_preview', { ...options })
+    await invoke('plugin:camera-kessdev|start_preview', { ...options })
     return
   }
   await ensureDesktopStream(options)
@@ -152,7 +152,7 @@ export async function startPreview(options?: StartPreviewOptions): Promise<void>
 /** Stops the camera preview and releases the camera. */
 export async function stopPreview(): Promise<void> {
   if (isMobile()) {
-    await invoke('plugin:camera|stop_preview')
+    await invoke('plugin:camera-kessdev|stop_preview')
     return
   }
   teardownDesktopStream()
@@ -180,7 +180,7 @@ export async function getPreviewStream(): Promise<MediaStream | null> {
  */
 export async function capture(options?: CaptureOptions): Promise<Photo> {
   if (isMobile()) {
-    return await invoke<Photo>('plugin:camera|capture', { ...options })
+    return await invoke<Photo>('plugin:camera-kessdev|capture', { ...options })
   }
   return captureDesktopFrame()
 }
@@ -192,7 +192,7 @@ export async function capture(options?: CaptureOptions): Promise<Photo> {
 /** Switches between front and back camera (mobile). */
 export async function flipCamera(): Promise<void> {
   if (isMobile()) {
-    await invoke('plugin:camera|flip_camera')
+    await invoke('plugin:camera-kessdev|flip_camera')
     return
   }
   throw new Error('flipCamera is not supported on desktop. Restart the preview with a different camera direction.')
@@ -201,7 +201,7 @@ export async function flipCamera(): Promise<void> {
 /** Sets the flash mode (mobile). */
 export async function setFlash(mode: FlashMode): Promise<void> {
   if (isMobile()) {
-    await invoke('plugin:camera|set_flash', { mode })
+    await invoke('plugin:camera-kessdev|set_flash', { mode })
     return
   }
   throw new Error('setFlash is not supported on desktop.')
@@ -210,7 +210,7 @@ export async function setFlash(mode: FlashMode): Promise<void> {
 /** Sets the camera zoom factor (mobile). */
 export async function setZoom(factor: number): Promise<void> {
   if (isMobile()) {
-    await invoke('plugin:camera|set_zoom', { factor })
+    await invoke('plugin:camera-kessdev|set_zoom', { factor })
     return
   }
   throw new Error('setZoom is not supported on desktop.')
@@ -223,7 +223,7 @@ export async function setZoom(factor: number): Promise<void> {
 /** Starts video recording (with audio). */
 export async function startRecording(): Promise<void> {
   if (isMobile()) {
-    await invoke('plugin:camera|start_recording')
+    await invoke('plugin:camera-kessdev|start_recording')
     return
   }
 
@@ -255,7 +255,7 @@ export async function startRecording(): Promise<void> {
 /** Stops video recording and returns the recorded media. */
 export async function stopRecording(): Promise<Video> {
   if (isMobile()) {
-    return await invoke<Video>('plugin:camera|stop_recording')
+    return await invoke<Video>('plugin:camera-kessdev|stop_recording')
   }
 
   if (!mediaRecorder) {
@@ -289,7 +289,7 @@ export async function stopRecording(): Promise<Video> {
  */
 export async function saveToGallery(path: string): Promise<void> {
   if (isMobile()) {
-    await invoke('plugin:camera|save_to_gallery', { path })
+    await invoke('plugin:camera-kessdev|save_to_gallery', { path })
     return
   }
   throw new Error('saveToGallery is not supported on desktop.')
@@ -302,7 +302,7 @@ export async function saveToGallery(path: string): Promise<void> {
 /** Gets the current camera permission state. */
 export async function checkPermissions(): Promise<PermissionState> {
   if (isMobile()) {
-    return await checkPermissions_<{ camera: PermissionState }>('camera').then((r) => r.camera)
+    return await checkPermissions_<{ camera: PermissionState }>('camera-kessdev').then((r) => r.camera)
   }
   try {
     const status = await navigator.permissions.query({ name: 'camera' as PermissionName })
@@ -315,7 +315,7 @@ export async function checkPermissions(): Promise<PermissionState> {
 /** Requests camera permission. */
 export async function requestPermissions(): Promise<PermissionState> {
   if (isMobile()) {
-    return await requestPermissions_<{ camera: PermissionState }>('camera').then((r) => r.camera)
+    return await requestPermissions_<{ camera: PermissionState }>('camera-kessdev').then((r) => r.camera)
   }
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: true })
@@ -329,7 +329,7 @@ export async function requestPermissions(): Promise<PermissionState> {
 /** Opens the application settings screen (mobile). */
 export async function openAppSettings(): Promise<void> {
   if (isMobile()) {
-    await invoke('plugin:camera|open_app_settings')
+    await invoke('plugin:camera-kessdev|open_app_settings')
     return
   }
   throw new Error('openAppSettings is not supported on desktop.')
