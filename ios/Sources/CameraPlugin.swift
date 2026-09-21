@@ -395,11 +395,7 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
       return
     }
 
-    PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
-      if status != .authorized && status != .limited {
-        invoke.reject("Photo library permission denied")
-        return
-      }
+    let save: () -> Void = {
       PHPhotoLibrary.shared().performChanges {
         PHAssetChangeRequest.creationRequestForAssetFromImage(atFileURL: fileURL)
       } completionHandler: { success, error in
@@ -407,6 +403,24 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
           invoke.resolve()
         } else {
           invoke.reject(error?.localizedDescription ?? "Failed to save image to gallery")
+        }
+      }
+    }
+
+    if #available(iOS 14, *) {
+      PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
+        if status == .authorized || status == .limited {
+          save()
+        } else {
+          invoke.reject("Photo library permission denied")
+        }
+      }
+    } else {
+      PHPhotoLibrary.requestAuthorization { status in
+        if status == .authorized {
+          save()
+        } else {
+          invoke.reject("Photo library permission denied")
         }
       }
     }
