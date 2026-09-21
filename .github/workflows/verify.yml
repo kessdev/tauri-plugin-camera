@@ -79,12 +79,13 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - uses: android-actions/setup-android@v3
-
       - name: install Android SDK packages
         run: |
-          sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;26.1.10909125"
-          yes | sdkmanager --licenses > /dev/null || true
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager 2>/dev/null | sort | tail -1)"
+          echo "Using sdkmanager: $SDKMANAGER"
+          echo "$(dirname "$SDKMANAGER")" >> "$GITHUB_PATH"
+          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0" "ndk;26.1.10909125"
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -117,19 +118,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: install example dependencies
-        working-directory: examples/tauri-app
-        run: npm install
+      - name: download Rust dependencies
+        run: cargo fetch
 
-      - name: generate iOS project
-        working-directory: examples/tauri-app
-        run: npm run tauri ios init
+      - name: link Tauri iOS API for the plugin tests
+        run: |
+          SRC="$(find "${CARGO_HOME:-$HOME/.cargo}/registry/src" -type d -path '*/tauri-*/mobile/ios-api' 2>/dev/null | sort | tail -1)"
+          echo "Tauri iOS API: $SRC"
+          test -n "$SRC"
+          mkdir -p .tauri
+          cp -R "$SRC" .tauri/tauri-api
 
       - name: run Swift tests on iOS Simulator
         working-directory: ios
