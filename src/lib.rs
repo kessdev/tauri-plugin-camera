@@ -10,9 +10,6 @@ mod desktop;
 #[cfg(mobile)]
 mod mobile;
 
-#[cfg(desktop)]
-mod desktop_permissions;
-
 mod error;
 mod models;
 
@@ -45,12 +42,6 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
       let camera = desktop::init(app, api)?;
       app.manage(camera);
       Ok(())
-    })
-    .on_webview_ready(|webview| {
-      #[cfg(desktop)]
-      desktop_permissions::install(&webview);
-      #[cfg(not(desktop))]
-      let _ = webview;
     })
     .build()
 }
