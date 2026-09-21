@@ -24,11 +24,7 @@ const requestPermissionsMock = vi.mocked(requestPermissions)
 const checkPermissionsMock = vi.mocked(checkPermissions)
 
 function setUserAgent(ua: string): void {
-  Object.defineProperty(globalThis.navigator, 'userAgent', {
-    value: ua,
-    configurable: true,
-    writable: true
-  })
+  vi.stubGlobal('navigator', { userAgent: ua })
 }
 
 beforeEach(() => {

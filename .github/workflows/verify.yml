@@ -52,7 +52,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: install
@@ -72,7 +72,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - uses: actions/setup-java@v4
         with:
@@ -93,24 +93,24 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      - name: setup Gradle (cache)
+        uses: gradle/actions/setup-gradle@v3
+
       - name: install example dependencies
         working-directory: examples/tauri-app
         run: npm install
 
       - name: generate Android project
         working-directory: examples/tauri-app
-        run: npm run tauri android init
+        run: npx tauri android init
 
-      - name: setup Gradle (cache)
-        uses: gradle/actions/setup-gradle@v3
+      - name: build Android (debug) — generates tauri.settings.gradle
+        working-directory: examples/tauri-app
+        run: npx tauri android build --debug
 
       - name: run Kotlin unit tests
         working-directory: examples/tauri-app/src-tauri/gen/android
         run: ./gradlew test
-
-      - name: compile Android (debug)
-        working-directory: examples/tauri-app/src-tauri/gen/android
-        run: ./gradlew assembleDebug
 
   verify-ios:
     name: verify (ios)
@@ -134,6 +134,8 @@ jobs:
       - name: run Swift tests on iOS Simulator
         working-directory: ios
         run: |
-          xcodebuild test \
-            -scheme tauri-plugin-camera-kessdev \
-            -destination 'platform=iOS Simulator,name=iPhone 15'
+          xcodebuild -list -json
+          SCHEME="$(xcodebuild -list -json | python3 -c "import json,sys; d=json.load(sys.stdin); r=d.get('workspace') or d.get('project') or {}; s=r.get('schemes') or []; print(s[0] if s else '')")"
+          echo "Using scheme: $SCHEME"
+          test -n "$SCHEME"
+          xcodebuild test -scheme "$SCHEME" -destination 'platform=iOS Simulator,name=iPhone 15'
