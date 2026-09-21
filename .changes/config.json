@@ -9,7 +9,7 @@
           "url": "https://crates.io/api/v1/crates/${ pkg.pkgFile.pkg.package.name }/${ pkg.pkgFile.version }"
         }
       },
-      "publish": "cargo publish"
+      "publish": "cargo publish --no-verify"
     },
     "javascript": {
       "version": true,
