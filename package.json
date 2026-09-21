@@ -1,11 +1,18 @@
 {
   "name": "tauri-plugin-camera-kessdev",
-  "version": "0.1.0",
+  "version": "0.1.1-beta.0",
   "author": "kess",
   "description": "Camera plugin for Tauri v2: photo capture, video recording and preview on Android, iOS and desktop.",
   "license": "MIT",
   "repository": "https://github.com/kessdev/tauri-plugin-camera",
-  "keywords": ["tauri", "tauri-plugin", "camera", "rust", "android", "ios"],
+  "keywords": [
+    "tauri",
+    "tauri-plugin",
+    "camera",
+    "rust",
+    "android",
+    "ios"
+  ],
   "type": "module",
   "types": "./dist-js/index.d.ts",
   "main": "./dist-js/index.cjs",
