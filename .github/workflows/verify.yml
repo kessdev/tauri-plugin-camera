@@ -96,6 +96,11 @@ jobs:
       - name: setup Gradle (cache)
         uses: gradle/actions/setup-gradle@v3
 
+      - name: build plugin JS bindings
+        run: |
+          npm ci
+          npm run build
+
       - name: install example dependencies
         working-directory: examples/tauri-app
         run: npm install
@@ -136,6 +141,8 @@ jobs:
         run: |
           xcodebuild -list -json
           SCHEME="$(xcodebuild -list -json | python3 -c "import json,sys; d=json.load(sys.stdin); r=d.get('workspace') or d.get('project') or {}; s=r.get('schemes') or []; print(s[0] if s else '')")"
-          echo "Using scheme: $SCHEME"
+          SIM="$(xcrun simctl list devices available | grep -m1 -E '^[[:space:]]+iPhone' | sed -E 's/^[[:space:]]+//; s/ \(.*//')"
+          echo "scheme=$SCHEME simulator=$SIM"
           test -n "$SCHEME"
-          xcodebuild test -scheme "$SCHEME" -destination 'platform=iOS Simulator,name=iPhone 15'
+          test -n "$SIM"
+          xcodebuild test -scheme "$SCHEME" -destination "platform=iOS Simulator,name=$SIM"
