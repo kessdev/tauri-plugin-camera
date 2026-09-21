@@ -10,7 +10,11 @@ permissions:
   pull-requests: write
 
 jobs:
+  verify:
+    uses: ./.github/workflows/verify.yml
+
   version-or-publish:
+    needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:

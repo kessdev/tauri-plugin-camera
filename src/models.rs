@@ -78,8 +78,14 @@ mod tests {
 
   #[test]
   fn serializes_flash_mode_lowercase() {
-    assert_eq!(serde_json::to_string(&FlashMode::Auto).unwrap(), r#""auto""#);
-    assert_eq!(serde_json::to_string(&CameraDirection::Back).unwrap(), r#""back""#);
+    assert_eq!(
+      serde_json::to_string(&FlashMode::Auto).unwrap(),
+      r#""auto""#
+    );
+    assert_eq!(
+      serde_json::to_string(&CameraDirection::Back).unwrap(),
+      r#""back""#
+    );
   }
 
   #[test]
