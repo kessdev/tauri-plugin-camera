@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-camera-kessdev"
-version = "0.1.1-beta.1"
+version = "0.1.1-beta.2"
 authors = [ "kess" ]
 description = "Camera plugin for Tauri v2: photo capture, video recording and preview on Android, iOS and desktop."
 license = "MIT"
