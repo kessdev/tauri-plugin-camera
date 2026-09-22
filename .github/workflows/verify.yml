@@ -146,3 +146,24 @@ jobs:
           test -n "$SCHEME"
           test -n "$SIM"
           xcodebuild test -scheme "$SCHEME" -destination "platform=iOS Simulator,name=$SIM"
+
+  verify-windows:
+    name: verify (windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: format
+        run: cargo fmt --all -- --check
+
+      - name: clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: test
+        run: cargo test
