@@ -472,7 +472,11 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
       return
     }
 
-    let modes = focusModeNames(from: camera.focusModes)
+    var supportedModes: [AVCaptureDevice.FocusMode] = []
+    if camera.isFocusModeSupported(.autoFocus) { supportedModes.append(.autoFocus) }
+    if camera.isFocusModeSupported(.continuousAutoFocus) { supportedModes.append(.continuousAutoFocus) }
+    if camera.isFocusModeSupported(.locked) { supportedModes.append(.locked) }
+    let modes = focusModeNames(from: supportedModes)
     var result: [String: Any] = [
       "cameraId": camera.uniqueID,
       "hasFlash": camera.hasFlash,
