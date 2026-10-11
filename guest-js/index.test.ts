@@ -12,14 +12,15 @@ import { invoke, requestPermissions, checkPermissions } from '@tauri-apps/api/co
 import {
   capture,
   startPreview,
+  stopPreview,
   startRecording,
   stopRecording,
   flipCamera,
   setFlash,
   setZoom,
   getZoom,
-  getZoomRange,
-  isFlashAvailable,
+  getAvailableCameras,
+  getCapabilities,
   saveToGallery,
   requestPermissions as requestCameraPermissions,
   checkPermissions as checkCameraPermissions,
@@ -80,19 +81,36 @@ describe('mobile dispatch', () => {
     expect(invokeMock).toHaveBeenNthCalledWith(3, 'plugin:camera-kessdev|set_zoom', { factor: 2.5 })
   })
 
-  it('getZoom, getZoomRange and isFlashAvailable invoke mobile commands', async () => {
-    invokeMock.mockResolvedValueOnce(2).mockResolvedValueOnce({ min: 1, max: 8, current: 2 })
+  it('getZoom invokes the mobile command', async () => {
+    invokeMock.mockResolvedValueOnce(2)
     const zoom = await getZoom()
-    const range = await getZoomRange()
     expect(invokeMock).toHaveBeenNthCalledWith(1, 'plugin:camera-kessdev|get_zoom')
-    expect(invokeMock).toHaveBeenNthCalledWith(2, 'plugin:camera-kessdev|get_zoom_range')
     expect(zoom).toBe(2)
-    expect(range).toEqual({ min: 1, max: 8, current: 2 })
+  })
 
-    invokeMock.mockResolvedValueOnce(true)
-    const flash = await isFlashAvailable()
-    expect(invokeMock).toHaveBeenNthCalledWith(3, 'plugin:camera-kessdev|is_flash_available')
-    expect(flash).toBe(true)
+  it('getAvailableCameras invokes the mobile command', async () => {
+    const cameras = [{ id: '0', facing: 'back', lens: 'wide' }]
+    invokeMock.mockResolvedValueOnce(cameras)
+    const result = await getAvailableCameras()
+    expect(invokeMock).toHaveBeenNthCalledWith(1, 'plugin:camera-kessdev|get_available_cameras')
+    expect(result).toEqual(cameras)
+  })
+
+  it('getCapabilities forwards cameraId to the mobile command', async () => {
+    const caps = {
+      cameraId: '1',
+      hasFlash: true,
+      hasTorch: true,
+      zoomRange: { min: 1, max: 8 },
+      supportsFocus: true,
+      supportsPause: false
+    }
+    invokeMock.mockResolvedValueOnce(caps)
+    const result = await getCapabilities('1')
+    expect(invokeMock).toHaveBeenNthCalledWith(1, 'plugin:camera-kessdev|get_capabilities', {
+      cameraId: '1'
+    })
+    expect(result).toEqual(caps)
   })
 
   it('saveToGallery forwards the media type override', async () => {
@@ -132,13 +150,75 @@ describe('desktop degradation', () => {
     await expect(setFlash('on')).rejects.toThrow(/not supported on desktop/)
   })
 
-  it('getZoom and getZoomRange throw on desktop', async () => {
+  it('getZoom throws on desktop', async () => {
     await expect(getZoom()).rejects.toThrow(/not supported on desktop/)
-    await expect(getZoomRange()).rejects.toThrow(/not supported on desktop/)
+  })
+})
+
+describe('desktop introspection', () => {
+  beforeEach(() => {
+    setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64)')
   })
 
-  it('isFlashAvailable resolves to false on desktop', async () => {
-    await expect(isFlashAvailable()).resolves.toBe(false)
+  afterEach(async () => {
+    await stopPreview()
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('enumerates video input devices', async () => {
+    const enumerateDevices = vi.fn().mockResolvedValue([
+      { kind: 'videoinput', deviceId: 'cam1', label: 'Front Camera (user)' },
+      { kind: 'audioinput', deviceId: 'mic1', label: 'Microphone' },
+      { kind: 'videoinput', deviceId: 'cam2', label: 'Back Camera (environment)' }
+    ])
+    vi.stubGlobal('navigator', {
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+      mediaDevices: { enumerateDevices }
+    })
+
+    const cameras = await getAvailableCameras()
+    expect(cameras).toEqual([
+      { id: 'cam1', facing: 'front', label: 'Front Camera (user)' },
+      { id: 'cam2', facing: 'back', label: 'Back Camera (environment)' }
+    ])
+  })
+
+  it('omits hardware capabilities without an active stream', async () => {
+    await stopPreview()
+    const caps = await getCapabilities()
+    expect(caps.hasFlash).toBe(false)
+    expect(caps.hasTorch).toBe(false)
+    expect(caps.supportsPause).toBe(true)
+    expect(caps.zoomRange).toBeUndefined()
+    expect(caps.focusModes).toBeUndefined()
+  })
+
+  it('reads hardware capabilities from the active track', async () => {
+    const track = {
+      stop: vi.fn(),
+      getCapabilities: () => ({
+        zoom: { min: 1, max: 4 },
+        torch: true,
+        focusMode: ['continuous', 'locked']
+      })
+    }
+    const stream = { getTracks: () => [track], getVideoTracks: () => [track] }
+    vi.stubGlobal('navigator', {
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+      mediaDevices: { getUserMedia: vi.fn().mockResolvedValue(stream) }
+    })
+    vi.stubGlobal('document', {
+      createElement: () => ({ muted: false, playsInline: false, play: vi.fn().mockResolvedValue(undefined) })
+    })
+
+    await startPreview()
+    const caps = await getCapabilities('cam1')
+    expect(caps.cameraId).toBe('cam1')
+    expect(caps.zoomRange).toEqual({ min: 1, max: 4 })
+    expect(caps.hasTorch).toBe(true)
+    expect(caps.supportsFocus).toBe(true)
+    expect(caps.focusModes).toEqual(['continuous', 'locked'])
   })
 })
 

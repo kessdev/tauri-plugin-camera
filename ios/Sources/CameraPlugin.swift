@@ -36,6 +36,10 @@ struct StopRecordingOptions: Decodable {
   var thumbnail: Bool?
 }
 
+struct GetCapabilitiesOptions: Decodable {
+  var cameraId: String?
+}
+
 private let videoExtensions: Set<String> = ["mp4", "mov", "m4v", "webm", "3gp", "mkv"]
 
 /// Whether the file at `path` is a video, honoring an explicit type override.
@@ -44,6 +48,42 @@ func mediaIsVideo(path: String, override: String?) -> Bool {
   if override == "image" { return false }
   let ext = (path as NSString).pathExtension.lowercased()
   return videoExtensions.contains(ext)
+}
+
+/// Maps a capture device position to the plugin's facing value.
+func facingName(for position: AVCaptureDevice.Position) -> String? {
+  switch position {
+  case .front: return "front"
+  case .back: return "back"
+  default: return nil
+  }
+}
+
+/// Best-effort lens hint from an iOS capture device type.
+func lensName(for deviceType: AVCaptureDevice.DeviceType) -> String {
+  switch deviceType {
+  case .builtInUltraWideCamera: return "ultraWide"
+  case .builtInTelephotoCamera: return "telephoto"
+  default: return "wide"
+  }
+}
+
+/// Maps iOS focus modes to the plugin's declarative focus modes.
+func focusModeNames(from modes: [AVCaptureDevice.FocusMode]) -> [String] {
+  var result: [String] = []
+  for mode in modes {
+    let name: String?
+    switch mode {
+    case .autoFocus: name = "auto"
+    case .continuousAutoFocus: name = "continuous"
+    case .locked: name = "locked"
+    default: name = nil
+    }
+    if let name = name, !result.contains(name) {
+      result.append(name)
+    }
+  }
+  return result
 }
 
 /// Live telemetry emitted while a video recording is in progress.
@@ -374,25 +414,78 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
     invoke.resolve(Double(device.videoZoomFactor))
   }
 
-  @objc private func getZoomRange(_ invoke: Invoke) {
-    guard let device = currentCamera else {
-      invoke.reject("Camera preview is not active. Call startPreview() first.")
-      return
-    }
-    let range: JsonObject = [
-      "min": Double(device.minAvailableVideoZoomFactor),
-      "max": Double(device.activeFormat.videoMaxZoomFactor),
-      "current": Double(device.videoZoomFactor)
+  // MARK: Introspection
+
+  /// All physical lenses exposed by the plugin (wide, ultra-wide, telephoto, front).
+  func availableLenses() -> [AVCaptureDevice] {
+    let deviceTypes: [AVCaptureDevice.DeviceType] = [
+      .builtInWideAngleCamera,
+      .builtInUltraWideCamera,
+      .builtInTelephotoCamera,
+      .builtInTrueDepthCamera,
     ]
-    invoke.resolve(range)
+    let discoverySession = AVCaptureDevice.DiscoverySession(
+      deviceTypes: deviceTypes,
+      mediaType: .video,
+      position: .unspecified
+    )
+    return discoverySession.devices
   }
 
-  @objc private func isFlashAvailable(_ invoke: Invoke) {
-    guard let device = currentCamera else {
-      invoke.reject("Camera preview is not active. Call startPreview() first.")
+  private func defaultBackDevice() -> AVCaptureDevice? {
+    let devices = availableLenses()
+    return devices.first { $0.position == .back && $0.deviceType == .builtInWideAngleCamera }
+      ?? devices.first { $0.position == .back }
+  }
+
+  @objc private func getAvailableCameras(_ invoke: Invoke) {
+    let cameras: [[String: Any]] = availableLenses().map { device in
+      var entry: [String: Any] = [
+        "id": device.uniqueID,
+        "lens": lensName(for: device.deviceType),
+        "label": device.localizedName,
+      ]
+      if let facing = facingName(for: device.position) {
+        entry["facing"] = facing
+      }
+      return entry
+    }
+    invoke.resolve(cameras)
+  }
+
+  @objc private func getCapabilities(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(GetCapabilitiesOptions.self)
+
+    let device: AVCaptureDevice?
+    if let cameraId = args.cameraId {
+      device = AVCaptureDevice(uniqueID: cameraId)
+    } else if let current = currentCamera {
+      device = current
+    } else {
+      device = defaultBackDevice()
+    }
+    guard let camera = device else {
+      invoke.reject("No camera available for the requested id")
       return
     }
-    invoke.resolve(device.hasFlash)
+
+    let modes = focusModeNames(from: camera.focusModes)
+    var result: [String: Any] = [
+      "cameraId": camera.uniqueID,
+      "hasFlash": camera.hasFlash,
+      "hasTorch": camera.hasTorch,
+      "supportsFocus": !modes.isEmpty,
+      "supportsPause": false,
+      "photoFormats": ["jpeg", "heic"],
+      "zoomRange": [
+        "min": Double(camera.minAvailableVideoZoomFactor),
+        "max": Double(camera.activeFormat.videoMaxZoomFactor),
+      ],
+    ]
+    if !modes.isEmpty {
+      result["focusModes"] = modes
+    }
+    invoke.resolve(result)
   }
 
   // MARK: Video recording

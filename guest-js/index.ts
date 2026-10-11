@@ -49,11 +49,50 @@ export interface Video {
   thumbnail?: string
 }
 
-/** Supported zoom range of the active camera. */
+/** Supported zoom range of a camera (declarative, without the live value). */
 export interface ZoomRange {
   min: number
   max: number
-  current: number
+}
+
+/** Orientation of a camera. */
+export type CameraFacing = 'front' | 'back' | 'external'
+
+/**
+ * Best-effort hint of which lens a camera maps to. Platforms that cannot
+ * determine it (notably desktop) omit the field.
+ */
+export type CameraLens = 'wide' | 'ultraWide' | 'telephoto' | (string & {})
+
+/** A camera (physical or logical lens) available on the device. */
+export interface CameraInfo {
+  /** Native, session-stable identifier (usable to reference this camera). */
+  id: string
+  /** Orientation, when the platform can determine it. */
+  facing?: CameraFacing
+  /** Best-effort lens hint, when the platform can determine it. */
+  lens?: CameraLens
+  /** Human-readable label, when available. */
+  label?: string
+}
+
+/**
+ * Declarative capabilities of a camera: what the hardware/platform *can* do.
+ *
+ * Optional fields are omitted when the platform cannot determine them. Live
+ * values (e.g. the current zoom factor) are exposed by dedicated getters such
+ * as {@link getZoom}, never here.
+ */
+export interface CameraCapabilities {
+  /** Identifier of the camera these capabilities describe, when known. */
+  cameraId?: string
+  hasFlash: boolean
+  hasTorch: boolean
+  zoomRange?: ZoomRange
+  supportsFocus: boolean
+  focusModes?: string[]
+  photoFormats?: string[]
+  supportsPause: boolean
 }
 
 /**
@@ -297,24 +336,97 @@ export async function getZoom(): Promise<number> {
   throw new Error('getZoom is not supported on desktop.')
 }
 
-/** Gets the supported zoom range of the active camera (mobile). */
-export async function getZoomRange(): Promise<ZoomRange> {
-  if (isMobile()) {
-    return await invoke<ZoomRange>('plugin:camera-kessdev|get_zoom_range')
-  }
-  throw new Error('getZoomRange is not supported on desktop.')
+// ---------------------------------------------------------------------------
+// Introspection (available cameras + declarative capabilities)
+// ---------------------------------------------------------------------------
+
+/** Best-effort facing detection from a device label (desktop). */
+function facingFromLabel(label: string): CameraFacing | undefined {
+  const value = label.toLowerCase()
+  if (value.includes('front') || value.includes('user')) return 'front'
+  if (value.includes('back') || value.includes('rear') || value.includes('environment')) return 'back'
+  return undefined
+}
+
+/** Enumerates video input devices on desktop via `enumerateDevices()`. */
+async function enumerateDesktopCameras(): Promise<CameraInfo[]> {
+  const devices = await navigator.mediaDevices.enumerateDevices()
+  return devices
+    .filter((device) => device.kind === 'videoinput')
+    .map((device) => {
+      const info: CameraInfo = { id: device.deviceId }
+      const facing = facingFromLabel(device.label)
+      if (facing) info.facing = facing
+      if (device.label) info.label = device.label
+      return info
+    })
+}
+
+/** Subset of the non-standard `MediaTrackCapabilities` (image capture) fields. */
+interface TrackImageCapabilities {
+  zoom?: { min: number; max: number }
+  torch?: boolean
+  focusMode?: string[]
 }
 
 /**
- * Returns whether the active camera has a flash unit.
- *
- * On desktop this always resolves to `false` (no flash control).
+ * Declarative capabilities on desktop. Hardware fields (`zoomRange`, `hasTorch`,
+ * `focusModes`) are only known while a preview/recording stream is active; they
+ * are omitted otherwise.
  */
-export async function isFlashAvailable(): Promise<boolean> {
-  if (isMobile()) {
-    return await invoke<boolean>('plugin:camera-kessdev|is_flash_available')
+function desktopCapabilities(cameraId?: string): CameraCapabilities {
+  const caps: CameraCapabilities = {
+    hasFlash: false,
+    hasTorch: false,
+    supportsFocus: false,
+    supportsPause: true,
+    photoFormats: ['jpeg', 'png', 'webp']
   }
-  return false
+  if (cameraId) caps.cameraId = cameraId
+
+  const track = activeStream?.getVideoTracks?.()[0]
+  const trackCaps = track?.getCapabilities?.() as unknown as TrackImageCapabilities | undefined
+  if (trackCaps) {
+    if (trackCaps.zoom) {
+      caps.zoomRange = { min: trackCaps.zoom.min, max: trackCaps.zoom.max }
+    }
+    if (typeof trackCaps.torch === 'boolean') {
+      caps.hasTorch = trackCaps.torch
+    }
+    if (trackCaps.focusMode && trackCaps.focusMode.length > 0) {
+      caps.supportsFocus = true
+      caps.focusModes = trackCaps.focusMode
+    }
+  }
+  return caps
+}
+
+/**
+ * Lists the cameras (physical or logical lenses) available on the device.
+ *
+ * Works without an active preview on every platform. On desktop the labels may
+ * be empty until camera permission has been granted at least once.
+ */
+export async function getAvailableCameras(): Promise<CameraInfo[]> {
+  if (isMobile()) {
+    return await invoke<CameraInfo[]>('plugin:camera-kessdev|get_available_cameras')
+  }
+  return enumerateDesktopCameras()
+}
+
+/**
+ * Returns the declarative capabilities of a camera.
+ *
+ * Without `cameraId` it describes the active camera, or the default (back)
+ * camera when no preview is active. On mobile it works without an active
+ * preview; on desktop hardware fields are omitted until a stream is active.
+ * Live values are exposed by dedicated getters (e.g. {@link getZoom}).
+ */
+export async function getCapabilities(cameraId?: string): Promise<CameraCapabilities> {
+  if (isMobile()) {
+    return await invoke<CameraCapabilities>('plugin:camera-kessdev|get_capabilities', { cameraId })
+  }
+  return desktopCapabilities(cameraId)
 }
 
 // ---------------------------------------------------------------------------

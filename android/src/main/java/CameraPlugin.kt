@@ -10,6 +10,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.drawable.Drawable
+import android.hardware.camera2.CameraCharacteristics
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
@@ -20,7 +21,9 @@ import android.util.Base64
 import android.view.ViewGroup
 import android.webkit.WebView
 import android.widget.FrameLayout
+import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.core.Camera
+import androidx.camera.core.CameraInfo as CameraXInfo
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
@@ -45,6 +48,7 @@ import app.tauri.annotation.PermissionCallback
 import app.tauri.annotation.TauriPlugin
 import app.tauri.plugin.Channel
 import app.tauri.plugin.Invoke
+import app.tauri.plugin.JSArray
 import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
 import com.google.common.util.concurrent.ListenableFuture
@@ -92,6 +96,11 @@ class StartRecordingOptions {
 @InvokeArg
 class StopRecordingOptions {
   var thumbnail: Boolean = false
+}
+
+@InvokeArg
+class GetCapabilitiesOptions {
+  var cameraId: String? = null
 }
 
 @TauriPlugin(
@@ -429,33 +438,139 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
     invoke.resolveObject(zoom.toDouble())
   }
 
-  @Command
-  fun getZoomRange(invoke: Invoke) {
-    val camera = camera
-    if (camera == null) {
-      invoke.reject("Camera preview is not active. Call startPreview() first.")
+  // -------------------------------------------------------------------------
+  // Introspection
+  // -------------------------------------------------------------------------
+
+  private fun ensureCameraProvider(
+    onReady: (ProcessCameraProvider) -> Unit,
+    onError: (String) -> Unit
+  ) {
+    val existing = cameraProvider
+    if (existing != null) {
+      onReady(existing)
       return
     }
-    val zoomState = camera.cameraInfo.zoomState.value
-    if (zoomState == null) {
-      invoke.reject("Zoom state is not available")
-      return
+    val future = ProcessCameraProvider.getInstance(activity)
+    future.addListener(
+      {
+        try {
+          val provider = future.get()
+          cameraProvider = provider
+          onReady(provider)
+        } catch (e: Exception) {
+          onError(e.message ?: "Failed to access the camera provider")
+        }
+      },
+      ContextCompat.getMainExecutor(activity)
+    )
+  }
+
+  private fun <T> characteristic(info: CameraXInfo, key: CameraCharacteristics.Key<T>): T? {
+    return try {
+      Camera2CameraInfo.from(info).getCameraCharacteristic(key)
+    } catch (_: Exception) {
+      null
     }
-    val result = JSObject()
-    result.put("min", zoomState.minZoomRatio.toDouble())
-    result.put("max", zoomState.maxZoomRatio.toDouble())
-    result.put("current", zoomState.zoomRatio.toDouble())
-    invoke.resolve(result)
+  }
+
+  private fun lensName(info: CameraXInfo): String? {
+    val focal = characteristic(info, CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
+      ?.firstOrNull() ?: return null
+    val sensor = characteristic(info, CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE) ?: return null
+    val equivalent = CameraMath.toEquivalentFocalLength(focal, sensor.width) ?: return null
+    return CameraMath.lensFromEquivalentFocalLength(equivalent)
+  }
+
+  private fun cameraInfoToJsObject(info: CameraXInfo): JSObject {
+    val obj = JSObject()
+    obj.put("id", Camera2CameraInfo.from(info).cameraId)
+    CameraMath.facingFromLensFacing(info.lensFacing)?.let { obj.put("facing", it) }
+    lensName(info)?.let { obj.put("lens", it) }
+    return obj
+  }
+
+  private fun selectCameraInfo(provider: ProcessCameraProvider, cameraId: String?): CameraXInfo? {
+    val infos = provider.availableCameraInfos
+    if (cameraId != null) {
+      return infos.firstOrNull { Camera2CameraInfo.from(it).cameraId == cameraId }
+    }
+    val facing = if (currentLensFacing == CameraSelector.LENS_FACING_FRONT) {
+      CameraSelector.LENS_FACING_FRONT
+    } else {
+      CameraSelector.LENS_FACING_BACK
+    }
+    return infos.firstOrNull { it.lensFacing == facing } ?: infos.firstOrNull()
+  }
+
+  private fun zoomRangeOf(info: CameraXInfo): Pair<Double, Double>? {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+      val range = characteristic(info, CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE)
+      if (range != null) return Pair(range.lower.toDouble(), range.upper.toDouble())
+    }
+    val max = characteristic(info, CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM)
+    return if (max != null && max > 0f) Pair(1.0, max.toDouble()) else null
+  }
+
+  private fun capabilitiesToJsObject(info: CameraXInfo): JSObject {
+    val obj = JSObject()
+    obj.put("cameraId", Camera2CameraInfo.from(info).cameraId)
+
+    val hasFlash = characteristic(info, CameraCharacteristics.FLASH_INFO_AVAILABLE) ?: false
+    obj.put("hasFlash", hasFlash)
+    obj.put("hasTorch", hasFlash)
+
+    zoomRangeOf(info)?.let { (min, max) ->
+      val range = JSObject()
+      range.put("min", min)
+      range.put("max", max)
+      obj.put("zoomRange", range)
+    }
+
+    val afModes = characteristic(info, CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES)
+    val focusModes = CameraMath.focusModesFromAfModes(afModes)
+    obj.put("supportsFocus", focusModes.isNotEmpty())
+    if (focusModes.isNotEmpty()) {
+      val modes = JSArray()
+      focusModes.forEach { modes.put(it) }
+      obj.put("focusModes", modes)
+    }
+
+    val formats = JSArray()
+    formats.put("jpeg")
+    obj.put("photoFormats", formats)
+    obj.put("supportsPause", true)
+    return obj
   }
 
   @Command
-  fun isFlashAvailable(invoke: Invoke) {
-    val camera = camera
-    if (camera == null) {
-      invoke.reject("Camera preview is not active. Call startPreview() first.")
-      return
-    }
-    invoke.resolveObject(camera.cameraInfo.hasFlashUnit())
+  fun getAvailableCameras(invoke: Invoke) {
+    ensureCameraProvider(
+      onReady = { provider ->
+        val result = JSArray()
+        for (info in provider.availableCameraInfos) {
+          result.put(cameraInfoToJsObject(info))
+        }
+        invoke.resolve(result)
+      },
+      onError = { message -> invoke.reject(message) }
+    )
+  }
+
+  @Command
+  fun getCapabilities(invoke: Invoke) {
+    val args = invoke.parseArgs(GetCapabilitiesOptions::class.java)
+    ensureCameraProvider(
+      onReady = { provider ->
+        val info = selectCameraInfo(provider, args.cameraId)
+        if (info == null) {
+          invoke.reject("No camera available for the requested id")
+        } else {
+          invoke.resolve(capabilitiesToJsObject(info))
+        }
+      },
+      onError = { message -> invoke.reject(message) }
+    )
   }
 
   // -------------------------------------------------------------------------
