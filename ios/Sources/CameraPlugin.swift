@@ -27,6 +27,27 @@ struct SaveToGalleryOptions: Decodable {
   var path: String?
 }
 
+struct StartRecordingOptions: Decodable {
+  var onProgress: Channel?
+}
+
+/// Live telemetry emitted while a video recording is in progress.
+struct RecordingProgress: Codable, Equatable {
+  let duration: Double
+  let bytesRecorded: Int64?
+  let bitrate: Double?
+}
+
+/// Builds a telemetry payload. `bytesRecorded` and `bitrate` are omitted while
+/// the recorded size is unknown (zero).
+func makeRecordingProgress(duration: Double, bytesRecorded: Int64) -> RecordingProgress {
+  guard bytesRecorded > 0 else {
+    return RecordingProgress(duration: duration, bytesRecorded: nil, bitrate: nil)
+  }
+  let bitrate = duration > 0 ? Double(bytesRecorded) * 8.0 / duration : nil
+  return RecordingProgress(duration: duration, bytesRecorded: bytesRecorded, bitrate: bitrate)
+}
+
 enum CaptureError: Error {
   case cameraUnavailable
   case couldNotConfigureInput
@@ -51,6 +72,9 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
   var photoInvoke: Invoke?
   var stopRecordingInvoke: Invoke?
   var isRecording = false
+
+  var progressChannel: Channel?
+  var progressTimer: Timer?
 
   public override func load(webview: WKWebView) {
     self.webView = webview
@@ -155,6 +179,8 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
 
   private func destroy() {
     dismantleCamera()
+    stopProgressTimer()
+    progressChannel = nil
     photoInvoke = nil
     stopRecordingInvoke = nil
     isRecording = false
@@ -326,7 +352,32 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
 
   // MARK: Video recording
 
+  private func startProgressTimer() {
+    stopProgressTimer()
+    DispatchQueue.main.async { [weak self] in
+      guard let self = self, self.progressChannel != nil else { return }
+      self.progressTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) {
+        [weak self] _ in
+        self?.emitRecordingProgress()
+      }
+    }
+  }
+
+  private func stopProgressTimer() {
+    progressTimer?.invalidate()
+    progressTimer = nil
+  }
+
+  private func emitRecordingProgress() {
+    guard let channel = progressChannel, let output = movieOutput else { return }
+    let seconds = output.recordedDuration.seconds
+    guard seconds.isFinite, seconds >= 0 else { return }
+    let payload = makeRecordingProgress(duration: seconds, bytesRecorded: output.recordedFileSize)
+    try? channel.send(payload)
+  }
+
   @objc private func startRecording(_ invoke: Invoke) {
+    let args = try? invoke.parseArgs(StartRecordingOptions.self)
     guard let movieOutput = self.movieOutput, !isRecording else {
       invoke.reject("Camera preview is not active. Call startPreview() first.")
       return
@@ -340,8 +391,12 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
     let fileURL = FileManager.default.temporaryDirectory
       .appendingPathComponent("tauri-camera-\(Int(Date().timeIntervalSince1970 * 1000)).mp4")
 
+    progressChannel = args?.onProgress
     self.isRecording = true
     movieOutput.startRecording(to: fileURL, recordingDelegate: self)
+    if progressChannel != nil {
+      startProgressTimer()
+    }
     invoke.resolve()
   }
 
@@ -363,6 +418,8 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
     defer {
       self.isRecording = false
       self.stopRecordingInvoke = nil
+      self.stopProgressTimer()
+      self.progressChannel = nil
     }
     guard let invoke = self.stopRecordingInvoke else { return }
 

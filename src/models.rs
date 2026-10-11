@@ -64,6 +64,21 @@ pub struct Video {
   pub duration: f64,
 }
 
+/// Live telemetry emitted while a video recording is in progress.
+///
+/// Delivered through the optional `onProgress` channel passed to
+/// `start_recording`. Optional fields are omitted when the platform cannot
+/// determine them at that moment.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecordingProgress {
+  pub duration: f64,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub bytes_recorded: Option<u64>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub bitrate: Option<f64>,
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -101,5 +116,27 @@ mod tests {
   fn deserializes_video() {
     let video: Video = serde_json::from_str(r#"{"path":"/tmp/a.mp4","duration":3.5}"#).unwrap();
     assert_eq!(video.duration, 3.5);
+  }
+
+  #[test]
+  fn omits_absent_recording_progress_fields() {
+    let progress = RecordingProgress {
+      duration: 1.5,
+      bytes_recorded: Some(2048),
+      bitrate: None,
+    };
+    assert_eq!(
+      serde_json::to_string(&progress).unwrap(),
+      r#"{"duration":1.5,"bytesRecorded":2048}"#
+    );
+  }
+
+  #[test]
+  fn deserializes_recording_progress_camel_case() {
+    let progress: RecordingProgress =
+      serde_json::from_str(r#"{"duration":2.0,"bytesRecorded":1024,"bitrate":4096.0}"#).unwrap();
+    assert_eq!(progress.duration, 2.0);
+    assert_eq!(progress.bytes_recorded, Some(1024));
+    assert_eq!(progress.bitrate, Some(4096.0));
   }
 }
