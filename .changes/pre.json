@@ -2,8 +2,10 @@
   "tag": "beta",
   "changes": [
     ".changes/beta.md",
+    ".changes/complete-camera-basics.md",
     ".changes/desktop-permission.md",
     ".changes/fix-desktop-permission-version-drift.md",
+    ".changes/recording-progress-telemetry.md",
     ".changes/restore-desktop-permission.md"
   ]
 }
