@@ -439,8 +439,8 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
   }
 
   @objc private func getAvailableCameras(_ invoke: Invoke) {
-    let cameras: [[String: Any]] = availableLenses().map { device in
-      var entry: [String: Any] = [
+    let cameras: [[String: String]] = availableLenses().map { device in
+      var entry: [String: String] = [
         "id": device.uniqueID,
         "lens": lensName(for: device.deviceType),
         "label": device.localizedName,

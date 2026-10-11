@@ -22,6 +22,7 @@ import android.view.ViewGroup
 import android.webkit.WebView
 import android.widget.FrameLayout
 import androidx.camera.camera2.interop.Camera2CameraInfo
+import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraInfo as CameraXInfo
 import androidx.camera.core.CameraSelector
@@ -109,6 +110,7 @@ class GetCapabilitiesOptions {
     Permission(strings = [Manifest.permission.RECORD_AUDIO], alias = PERMISSION_ALIAS_AUDIO)
   ]
 )
+@OptIn(ExperimentalCamera2Interop::class)
 class CameraPlugin(private val activity: Activity) : Plugin(activity) {
   private lateinit var webView: WebView
 
