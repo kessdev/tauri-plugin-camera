@@ -145,7 +145,14 @@ jobs:
           echo "scheme=$SCHEME simulator=$SIM"
           test -n "$SCHEME"
           test -n "$SIM"
-          xcodebuild test -scheme "$SCHEME" -destination "platform=iOS Simulator,name=$SIM"
+          set +e
+          xcodebuild test -scheme "$SCHEME" -destination "platform=iOS Simulator,name=$SIM" 2>&1 | tee /tmp/ios-build.log
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -ne 0 ]; then
+            grep -m 15 -i "error:" /tmp/ios-build.log | while IFS= read -r line; do echo "::error::$line"; done || true
+          fi
+          exit "$status"
 
   verify-windows:
     name: verify (windows)
