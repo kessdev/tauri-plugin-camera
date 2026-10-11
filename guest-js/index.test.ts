@@ -17,6 +17,10 @@ import {
   flipCamera,
   setFlash,
   setZoom,
+  getZoom,
+  getZoomRange,
+  isFlashAvailable,
+  saveToGallery,
   requestPermissions as requestCameraPermissions,
   checkPermissions as checkCameraPermissions,
   convertFileSrc,
@@ -76,6 +80,30 @@ describe('mobile dispatch', () => {
     expect(invokeMock).toHaveBeenNthCalledWith(3, 'plugin:camera-kessdev|set_zoom', { factor: 2.5 })
   })
 
+  it('getZoom, getZoomRange and isFlashAvailable invoke mobile commands', async () => {
+    invokeMock.mockResolvedValueOnce(2).mockResolvedValueOnce({ min: 1, max: 8, current: 2 })
+    const zoom = await getZoom()
+    const range = await getZoomRange()
+    expect(invokeMock).toHaveBeenNthCalledWith(1, 'plugin:camera-kessdev|get_zoom')
+    expect(invokeMock).toHaveBeenNthCalledWith(2, 'plugin:camera-kessdev|get_zoom_range')
+    expect(zoom).toBe(2)
+    expect(range).toEqual({ min: 1, max: 8, current: 2 })
+
+    invokeMock.mockResolvedValueOnce(true)
+    const flash = await isFlashAvailable()
+    expect(invokeMock).toHaveBeenNthCalledWith(3, 'plugin:camera-kessdev|is_flash_available')
+    expect(flash).toBe(true)
+  })
+
+  it('saveToGallery forwards the media type override', async () => {
+    invokeMock.mockResolvedValue(undefined)
+    await saveToGallery('/tmp/a.mp4', { type: 'video' })
+    expect(invokeMock).toHaveBeenCalledWith('plugin:camera-kessdev|save_to_gallery', {
+      path: '/tmp/a.mp4',
+      type: 'video'
+    })
+  })
+
   it('requestPermissions delegates to the core helper', async () => {
     requestPermissionsMock.mockResolvedValue({ camera: 'granted' })
     const state = await requestCameraPermissions()
@@ -102,6 +130,15 @@ describe('desktop degradation', () => {
 
   it('setFlash throws on desktop', async () => {
     await expect(setFlash('on')).rejects.toThrow(/not supported on desktop/)
+  })
+
+  it('getZoom and getZoomRange throw on desktop', async () => {
+    await expect(getZoom()).rejects.toThrow(/not supported on desktop/)
+    await expect(getZoomRange()).rejects.toThrow(/not supported on desktop/)
+  })
+
+  it('isFlashAvailable resolves to false on desktop', async () => {
+    await expect(isFlashAvailable()).resolves.toBe(false)
   })
 })
 
@@ -145,11 +182,23 @@ describe('desktop recording telemetry', () => {
       mediaDevices: { getUserMedia: vi.fn().mockResolvedValue(stream) }
     })
     vi.stubGlobal('document', {
-      createElement: () => ({
-        muted: false,
-        playsInline: false,
-        play: vi.fn().mockResolvedValue(undefined)
-      })
+      createElement: (tag: string) => {
+        if (tag === 'canvas') {
+          return {
+            width: 0,
+            height: 0,
+            getContext: () => ({ drawImage: vi.fn() }),
+            toDataURL: () => 'data:image/jpeg;base64,thumb'
+          }
+        }
+        return {
+          muted: false,
+          playsInline: false,
+          videoWidth: 640,
+          videoHeight: 480,
+          play: vi.fn().mockResolvedValue(undefined)
+        }
+      }
     })
     vi.stubGlobal('MediaRecorder', MockMediaRecorder)
     vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(() => 'blob:mock') })
@@ -202,5 +251,17 @@ describe('desktop recording telemetry', () => {
 
     const video = await stopRecording()
     expect(video.url).toBe('blob:mock')
+  })
+
+  it('includes a thumbnail only when requested', async () => {
+    await startRecording()
+    MockMediaRecorder.instances[0].ondataavailable?.({ data: { size: 100 } })
+    const withoutThumbnail = await stopRecording()
+    expect(withoutThumbnail.thumbnail).toBeUndefined()
+
+    await startRecording()
+    MockMediaRecorder.instances[1].ondataavailable?.({ data: { size: 100 } })
+    const withThumbnail = await stopRecording({ thumbnail: true })
+    expect(withThumbnail.thumbnail).toBe('data:image/jpeg;base64,thumb')
   })
 })

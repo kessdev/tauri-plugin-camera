@@ -25,10 +25,25 @@ struct ZoomOptions: Decodable {
 
 struct SaveToGalleryOptions: Decodable {
   var path: String?
+  var type: String?
 }
 
 struct StartRecordingOptions: Decodable {
   var onProgress: Channel?
+}
+
+struct StopRecordingOptions: Decodable {
+  var thumbnail: Bool?
+}
+
+private let videoExtensions: Set<String> = ["mp4", "mov", "m4v", "webm", "3gp", "mkv"]
+
+/// Whether the file at `path` is a video, honoring an explicit type override.
+func mediaIsVideo(path: String, override: String?) -> Bool {
+  if override == "video" { return true }
+  if override == "image" { return false }
+  let ext = (path as NSString).pathExtension.lowercased()
+  return videoExtensions.contains(ext)
 }
 
 /// Live telemetry emitted while a video recording is in progress.
@@ -75,6 +90,7 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
 
   var progressChannel: Channel?
   var progressTimer: Timer?
+  var pendingThumbnail = false
 
   public override func load(webview: WKWebView) {
     self.webView = webview
@@ -350,6 +366,35 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
     }
   }
 
+  @objc private func getZoom(_ invoke: Invoke) {
+    guard let device = currentCamera else {
+      invoke.reject("Camera preview is not active. Call startPreview() first.")
+      return
+    }
+    invoke.resolve(Double(device.videoZoomFactor))
+  }
+
+  @objc private func getZoomRange(_ invoke: Invoke) {
+    guard let device = currentCamera else {
+      invoke.reject("Camera preview is not active. Call startPreview() first.")
+      return
+    }
+    let range: JsonObject = [
+      "min": Double(device.minAvailableVideoZoomFactor),
+      "max": Double(device.activeFormat.videoMaxZoomFactor),
+      "current": Double(device.videoZoomFactor)
+    ]
+    invoke.resolve(range)
+  }
+
+  @objc private func isFlashAvailable(_ invoke: Invoke) {
+    guard let device = currentCamera else {
+      invoke.reject("Camera preview is not active. Call startPreview() first.")
+      return
+    }
+    invoke.resolve(device.hasFlash)
+  }
+
   // MARK: Video recording
 
   private func startProgressTimer() {
@@ -401,12 +446,28 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
   }
 
   @objc private func stopRecording(_ invoke: Invoke) {
+    let args = try? invoke.parseArgs(StopRecordingOptions.self)
     guard let movieOutput = self.movieOutput, isRecording else {
       invoke.reject("Recording is not active. Call startRecording() first.")
       return
     }
+    self.pendingThumbnail = args?.thumbnail ?? false
     self.stopRecordingInvoke = invoke
     movieOutput.stopRecording()
+  }
+
+  private func makeVideoThumbnail(_ url: URL) -> String? {
+    let asset = AVURLAsset(url: url)
+    let generator = AVAssetImageGenerator(asset: asset)
+    generator.appliesPreferredTrackTransform = true
+    generator.maximumSize = CGSize(width: 256, height: 256)
+    let time = CMTime(seconds: 0.1, preferredTimescale: 600)
+    do {
+      let cgImage = try generator.copyCGImage(at: time, actualTime: nil)
+      return UIImage(cgImage: cgImage).jpegData(compressionQuality: 0.8)?.base64EncodedString()
+    } catch {
+      return nil
+    }
   }
 
   public func fileOutput(
@@ -420,6 +481,7 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
       self.stopRecordingInvoke = nil
       self.stopProgressTimer()
       self.progressChannel = nil
+      self.pendingThumbnail = false
     }
     guard let invoke = self.stopRecordingInvoke else { return }
 
@@ -431,10 +493,15 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
     let asset = AVURLAsset(url: outputFileURL)
     let duration = asset.duration.seconds
 
-    invoke.resolve([
+    var result: JsonObject = [
       "path": outputFileURL.path,
       "duration": duration
-    ])
+    ]
+    if self.pendingThumbnail, let thumbnail = makeVideoThumbnail(outputFileURL) {
+      result["thumbnail"] = thumbnail
+    }
+
+    invoke.resolve(result)
   }
 
   // MARK: Gallery
@@ -452,9 +519,15 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
       return
     }
 
+    let isVideo = mediaIsVideo(path: path, override: args.type)
+
     let save: () -> Void = {
       PHPhotoLibrary.shared().performChanges {
-        PHAssetChangeRequest.creationRequestForAssetFromImage(atFileURL: fileURL)
+        if isVideo {
+          PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: fileURL)
+        } else {
+          PHAssetChangeRequest.creationRequestForAssetFromImage(atFileURL: fileURL)
+        }
       } completionHandler: { success, error in
         if success {
           invoke.resolve()

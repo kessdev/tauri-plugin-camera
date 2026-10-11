@@ -62,6 +62,18 @@ pub struct Photo {
 pub struct Video {
   pub path: String,
   pub duration: f64,
+  /// Optional base64-encoded thumbnail (JPEG).
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub thumbnail: Option<String>,
+}
+
+/// Supported zoom range of the active camera.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ZoomRange {
+  pub min: f64,
+  pub max: f64,
+  pub current: f64,
 }
 
 /// Live telemetry emitted while a video recording is in progress.
@@ -116,6 +128,40 @@ mod tests {
   fn deserializes_video() {
     let video: Video = serde_json::from_str(r#"{"path":"/tmp/a.mp4","duration":3.5}"#).unwrap();
     assert_eq!(video.duration, 3.5);
+    assert_eq!(video.thumbnail, None);
+  }
+
+  #[test]
+  fn serializes_video_omitting_absent_thumbnail() {
+    let video = Video {
+      path: "/tmp/a.mp4".into(),
+      duration: 3.5,
+      thumbnail: None,
+    };
+    assert_eq!(
+      serde_json::to_string(&video).unwrap(),
+      r#"{"path":"/tmp/a.mp4","duration":3.5}"#
+    );
+  }
+
+  #[test]
+  fn deserializes_video_with_thumbnail() {
+    let video: Video =
+      serde_json::from_str(r#"{"path":"/tmp/a.mp4","duration":3.5,"thumbnail":"base64"}"#).unwrap();
+    assert_eq!(video.thumbnail.as_deref(), Some("base64"));
+  }
+
+  #[test]
+  fn round_trips_zoom_range_camel_case() {
+    let range = ZoomRange {
+      min: 1.0,
+      max: 8.0,
+      current: 2.5,
+    };
+    let json = serde_json::to_string(&range).unwrap();
+    assert_eq!(json, r#"{"min":1.0,"max":8.0,"current":2.5}"#);
+    let parsed: ZoomRange = serde_json::from_str(&json).unwrap();
+    assert_eq!(parsed.max, 8.0);
   }
 
   #[test]

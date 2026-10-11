@@ -128,7 +128,10 @@ import {
   stopRecording,
   flipCamera,
   setFlash,
+  isFlashAvailable,
   setZoom,
+  getZoom,
+  getZoomRange,
   saveToGallery,
   checkPermissions,
   requestPermissions,
@@ -168,7 +171,22 @@ await startRecording()
 // ... user records ...
 const video = await stopRecording()
 // video: { path, duration } (mobile) | { duration, blob, url } (desktop)
+
+// Optionally request a base64 JPEG thumbnail of the recording:
+const withThumbnail = await stopRecording({ thumbnail: true })
+// withThumbnail.thumbnail: string | undefined
 ```
+
+### Video thumbnail
+
+Pass `{ thumbnail: true }` to `stopRecording()` to include a base64-encoded JPEG
+poster frame in the `Video` result. It is opt-in because it costs a frame decode
+and encode. When it cannot be generated the field is omitted (the recording still
+succeeds).
+
+- **Android**: extracted with `MediaMetadataRetriever` on the recording executor.
+- **iOS**: extracted with `AVAssetImageGenerator` at ~0.1 s (avoids a black first frame).
+- **Desktop**: captured from the live preview stream at stop time.
 
 ### Recording progress (telemetry)
 
@@ -214,13 +232,26 @@ ends. Telemetry is never emitted after `stopRecording()` resolves.
 await flipCamera()
 await setFlash('on') // 'on' | 'off' | 'auto'
 await setZoom(2.0)
+
+// Query the active camera (mobile). Desktop has no zoom/flash control:
+const zoom = await getZoom()                       // number
+const range = await getZoomRange()                 // { min, max, current }
+const hasFlash = await isFlashAvailable()          // boolean (false on desktop)
 ```
+
+On desktop `getZoom()` and `getZoomRange()` reject with a descriptive error
+(consistent with `setZoom`), while `isFlashAvailable()` resolves to `false`.
 
 ### Gallery
 
 ```ts
-await saveToGallery(photo.path) // mobile only
+await saveToGallery(photo.path)                 // image
+await saveToGallery(video.path)                 // video
+await saveToGallery(media.path, { type: 'video' }) // forced type override
 ```
+
+Mobile only. The media type is inferred from the file extension (mp4, mov, m4v,
+webm, 3gp, mkv are treated as video); pass `{ type }` to force it.
 
 ### Permissions
 
@@ -360,11 +391,15 @@ destination from the generated Xcode project (`src-tauri/gen/apple`).
 | `capture(options?)` | ✓ `ImageCapture` / `AVCapturePhotoOutput` | ✓ canvas |
 | `flipCamera()` | ✓ | ✗ (throws) |
 | `setFlash(mode)` | ✓ | ✗ (throws) |
+| `isFlashAvailable()` | ✓ | `false` |
 | `setZoom(factor)` | ✓ | ✗ (throws) |
+| `getZoom()` | ✓ | ✗ (throws) |
+| `getZoomRange()` | ✓ | ✗ (throws) |
 | `startRecording(options?)` | ✓ `VideoCapture` / `AVCaptureMovieFileOutput` | ✓ `MediaRecorder` |
-| `stopRecording()` | ✓ | ✓ |
+| `stopRecording(options?)` | ✓ | ✓ |
 | `RecordingProgress` telemetry (`onProgress` channel) | ✓ | ✓ |
-| `saveToGallery(path)` | ✓ | ✗ (throws) |
+| `Video.thumbnail` (`stopRecording({ thumbnail: true })`) | ✓ | ✓ |
+| `saveToGallery(path, options?)` | ✓ image & video | ✗ (throws) |
 | `checkPermissions()` | ✓ | ✓ |
 | `requestPermissions()` | ✓ | ✓ |
 | `openAppSettings()` | ✓ | ✗ (throws) |

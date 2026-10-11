@@ -53,4 +53,25 @@ final class CameraPluginTests: XCTestCase {
     let json = String(decoding: data, as: UTF8.self)
     XCTAssertEqual(json, #"{"duration":1}"#)
   }
+
+  func testMediaIsVideoInfersFromExtensionAndOverride() {
+    XCTAssertTrue(mediaIsVideo(path: "/tmp/a.mp4", override: nil))
+    XCTAssertTrue(mediaIsVideo(path: "/tmp/a.MOV", override: nil))
+    XCTAssertTrue(mediaIsVideo(path: "/tmp/a.webm", override: nil))
+    XCTAssertFalse(mediaIsVideo(path: "/tmp/a.jpg", override: nil))
+    XCTAssertTrue(mediaIsVideo(path: "/tmp/a.jpg", override: "video"))
+    XCTAssertFalse(mediaIsVideo(path: "/tmp/a.mp4", override: "image"))
+  }
+
+  func testDecodesStopRecordingOptions() throws {
+    let data = Data(#"{"thumbnail":true}"#.utf8)
+    let options = try JSONDecoder().decode(StopRecordingOptions.self, from: data)
+    XCTAssertEqual(options.thumbnail, true)
+  }
+
+  func testDecodesSaveToGalleryTypeOverride() throws {
+    let data = Data(#"{"path":"/tmp/a.mp4","type":"video"}"#.utf8)
+    let options = try JSONDecoder().decode(SaveToGalleryOptions.self, from: data)
+    XCTAssertEqual(options.type, "video")
+  }
 }

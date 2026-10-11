@@ -45,6 +45,15 @@ export interface Video {
   blob?: Blob
   /** Object URL for the recorded video (desktop). */
   url?: string
+  /** Optional base64-encoded thumbnail, when requested via `stopRecording`. */
+  thumbnail?: string
+}
+
+/** Supported zoom range of the active camera. */
+export interface ZoomRange {
+  min: number
+  max: number
+  current: number
 }
 
 /**
@@ -66,6 +75,16 @@ export interface RecordingProgress {
 export interface StartRecordingOptions {
   /** Receives live recording telemetry while the recording is active. */
   onProgress?: Channel<RecordingProgress>
+}
+
+export interface StopRecordingOptions {
+  /** When true, the result includes a base64-encoded `thumbnail`. */
+  thumbnail?: boolean
+}
+
+export interface SaveToGalleryOptions {
+  /** Force the media type instead of inferring it from the file. */
+  type?: 'image' | 'video'
 }
 
 /**
@@ -270,6 +289,34 @@ export async function setZoom(factor: number): Promise<void> {
   throw new Error('setZoom is not supported on desktop.')
 }
 
+/** Gets the current camera zoom factor (mobile). */
+export async function getZoom(): Promise<number> {
+  if (isMobile()) {
+    return await invoke<number>('plugin:camera-kessdev|get_zoom')
+  }
+  throw new Error('getZoom is not supported on desktop.')
+}
+
+/** Gets the supported zoom range of the active camera (mobile). */
+export async function getZoomRange(): Promise<ZoomRange> {
+  if (isMobile()) {
+    return await invoke<ZoomRange>('plugin:camera-kessdev|get_zoom_range')
+  }
+  throw new Error('getZoomRange is not supported on desktop.')
+}
+
+/**
+ * Returns whether the active camera has a flash unit.
+ *
+ * On desktop this always resolves to `false` (no flash control).
+ */
+export async function isFlashAvailable(): Promise<boolean> {
+  if (isMobile()) {
+    return await invoke<boolean>('plugin:camera-kessdev|is_flash_available')
+  }
+  return false
+}
+
 // ---------------------------------------------------------------------------
 // Video recording
 // ---------------------------------------------------------------------------
@@ -327,9 +374,9 @@ export async function startRecording(options?: StartRecordingOptions): Promise<v
 }
 
 /** Stops video recording and returns the recorded media. */
-export async function stopRecording(): Promise<Video> {
+export async function stopRecording(options?: StopRecordingOptions): Promise<Video> {
   if (isMobile()) {
-    return await invoke<Video>('plugin:camera-kessdev|stop_recording')
+    return await invoke<Video>('plugin:camera-kessdev|stop_recording', { ...options })
   }
 
   if (!mediaRecorder) {
@@ -337,6 +384,7 @@ export async function stopRecording(): Promise<Video> {
   }
 
   const duration = (performance.now() - recordingStartedAt) / 1000
+  const thumbnail = options?.thumbnail ? captureDesktopThumbnail() : undefined
   stopProgressTimer()
 
   return await new Promise<Video>((resolve, reject) => {
@@ -347,11 +395,31 @@ export async function stopRecording(): Promise<Video> {
       recordedChunks = []
       recordedBytes = 0
       mediaRecorder = null
-      resolve({ duration, blob, url })
+      const result: Video = { duration, blob, url }
+      if (thumbnail) result.thumbnail = thumbnail
+      resolve(result)
     }
     mediaRecorder!.onerror = () => reject(new Error('Video recording failed.'))
     mediaRecorder!.stop()
   })
+}
+
+/** Captures the current desktop preview frame as a base64 JPEG thumbnail. */
+function captureDesktopThumbnail(): string | undefined {
+  if (!activeVideo || !activeVideo.videoWidth || !activeVideo.videoHeight) {
+    return undefined
+  }
+  try {
+    const canvas = document.createElement('canvas')
+    canvas.width = activeVideo.videoWidth
+    canvas.height = activeVideo.videoHeight
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return undefined
+    ctx.drawImage(activeVideo, 0, 0, canvas.width, canvas.height)
+    return canvas.toDataURL('image/jpeg')
+  } catch {
+    return undefined
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -359,13 +427,16 @@ export async function stopRecording(): Promise<Video> {
 // ---------------------------------------------------------------------------
 
 /**
- * Saves a captured image to the device photo gallery (mobile).
+ * Saves a captured photo or video to the device gallery (mobile).
  *
- * @param path Absolute path to the image file.
+ * The media type is inferred from the file extension; pass `options.type` to
+ * force it. On desktop this is not supported.
+ *
+ * @param path Absolute path to the media file.
  */
-export async function saveToGallery(path: string): Promise<void> {
+export async function saveToGallery(path: string, options?: SaveToGalleryOptions): Promise<void> {
   if (isMobile()) {
-    await invoke('plugin:camera-kessdev|save_to_gallery', { path })
+    await invoke('plugin:camera-kessdev|save_to_gallery', { path, ...options })
     return
   }
   throw new Error('saveToGallery is not supported on desktop.')
