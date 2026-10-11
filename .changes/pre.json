@@ -2,6 +2,7 @@
   "tag": "beta",
   "changes": [
     ".changes/beta.md",
-    ".changes/desktop-permission.md"
+    ".changes/desktop-permission.md",
+    ".changes/restore-desktop-permission.md"
   ]
 }

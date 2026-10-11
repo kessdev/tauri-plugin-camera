@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.1-beta.2]
+
+- [`95cc201`](https://github.com/kessdev/tauri-plugin-camera/commit/95cc201f19ae623bfcedf3e5b9e4569f17e3010f) Restore the desktop camera and microphone webview permission handler that was
+    dropped from main and shipped without it in 0.1.1-beta.1.
+
 ## [0.1.1-beta.1]
 
 - [`196aca2`](https://github.com/kessdev/tauri-plugin-camera/commit/196aca2e1949af3284d3e998de1c2068f4063942) Grant camera and microphone webview permission on desktop (Windows and Linux).

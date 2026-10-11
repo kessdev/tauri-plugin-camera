@@ -97,9 +97,25 @@ Add the following usage descriptions to the app `Info.plist`
 
 ### Desktop
 
-Desktop uses the browser's `getUserMedia`. On macOS, `WKWebView` additionally requires
-`NSCameraUsageDescription` and `NSMicrophoneUsageDescription` in the `Info.plist` (the
-same keys above).
+Desktop uses the browser's `getUserMedia`. The plugin installs a webview permission
+handler on **Windows** (WebView2 `PermissionRequested`) and **Linux** (webkitgtk
+`permission-request`) that allows camera and microphone, so `startPreview()` /
+`requestPermissions()` work without extra configuration. The webview asks the plugin,
+and the real gate is the operating system:
+
+- **Windows**: Settings → Privacy & security → Camera → turn on camera access and
+  "Let desktop apps access your camera".
+- **Linux**: the desktop portal (e.g. `xdg-desktop-portal`) governs camera access.
+
+> **Maintenance note:** the Windows handler uses the raw `webview2-com` API, whose
+> version must match the one `wry` links against through `tauri`. When bumping
+> `tauri`/`wry`, bump the `[target.'cfg(target_os = "windows")'.dependencies]`
+> `webview2-com` version in `Cargo.toml` to the same minor line as wry; otherwise
+> the build fails with an `E0277` trait-bound error. The `verify-windows` CI job
+> guards this.
+
+On **macOS**, `WKWebView` additionally requires `NSCameraUsageDescription` and
+`NSMicrophoneUsageDescription` in the `Info.plist` (the same keys above).
 
 ## Usage
 
