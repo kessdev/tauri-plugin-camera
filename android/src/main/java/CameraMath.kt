@@ -21,4 +21,27 @@ internal object CameraMath {
     factor.coerceIn(min, max)
 
   fun cameraDirectionBack(direction: String?): Boolean = direction != "front"
+
+  private val VIDEO_EXTENSIONS = setOf("mp4", "mov", "m4v", "webm", "3gp", "mkv")
+
+  /** Infers the media kind ("image" | "video") from the path, honoring an override. */
+  fun mediaKind(path: String?, override: String?): String {
+    if (override == "image" || override == "video") return override
+    val extension = path?.substringAfterLast('.', "")?.lowercase() ?: ""
+    return if (extension in VIDEO_EXTENSIONS) "video" else "image"
+  }
+
+  /** MIME type for the gallery insert, based on the file extension and media kind. */
+  fun mimeType(path: String?, kind: String): String {
+    val extension = path?.substringAfterLast('.', "")?.lowercase() ?: ""
+    return when (extension) {
+      "mp4", "m4v" -> "video/mp4"
+      "mov" -> "video/quicktime"
+      "webm" -> "video/webm"
+      "3gp" -> "video/3gpp"
+      "png" -> "image/png"
+      "jpg", "jpeg" -> "image/jpeg"
+      else -> if (kind == "video") "video/mp4" else "image/jpeg"
+    }
+  }
 }

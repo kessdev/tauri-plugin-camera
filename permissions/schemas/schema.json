@@ -331,6 +331,42 @@
           "markdownDescription": "Denies the flip_camera command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_zoom command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-zoom",
+          "markdownDescription": "Enables the get_zoom command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_zoom command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-zoom",
+          "markdownDescription": "Denies the get_zoom command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_zoom_range command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-zoom-range",
+          "markdownDescription": "Enables the get_zoom_range command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_zoom_range command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-zoom-range",
+          "markdownDescription": "Denies the get_zoom_range command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the is_flash_available command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-is-flash-available",
+          "markdownDescription": "Enables the is_flash_available command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the is_flash_available command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-is-flash-available",
+          "markdownDescription": "Denies the is_flash_available command without any pre-configured scope."
+        },
+        {
           "description": "Enables the open_app_settings command without any pre-configured scope.",
           "type": "string",
           "const": "allow-open-app-settings",
@@ -439,10 +475,10 @@
           "markdownDescription": "Denies the stop_recording command without any pre-configured scope."
         },
         {
-          "description": "Default permissions for the camera plugin\n#### This default permission set includes:\n\n- `allow-start-preview`\n- `allow-stop-preview`\n- `allow-capture`\n- `allow-flip-camera`\n- `allow-set-flash`\n- `allow-set-zoom`\n- `allow-start-recording`\n- `allow-stop-recording`\n- `allow-save-to-gallery`\n- `allow-request-permissions`\n- `allow-check-permissions`\n- `allow-open-app-settings`",
+          "description": "Default permissions for the camera plugin\n#### This default permission set includes:\n\n- `allow-start-preview`\n- `allow-stop-preview`\n- `allow-capture`\n- `allow-flip-camera`\n- `allow-set-flash`\n- `allow-set-zoom`\n- `allow-get-zoom`\n- `allow-get-zoom-range`\n- `allow-is-flash-available`\n- `allow-start-recording`\n- `allow-stop-recording`\n- `allow-save-to-gallery`\n- `allow-request-permissions`\n- `allow-check-permissions`\n- `allow-open-app-settings`",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Default permissions for the camera plugin\n#### This default permission set includes:\n\n- `allow-start-preview`\n- `allow-stop-preview`\n- `allow-capture`\n- `allow-flip-camera`\n- `allow-set-flash`\n- `allow-set-zoom`\n- `allow-start-recording`\n- `allow-stop-recording`\n- `allow-save-to-gallery`\n- `allow-request-permissions`\n- `allow-check-permissions`\n- `allow-open-app-settings`"
+          "markdownDescription": "Default permissions for the camera plugin\n#### This default permission set includes:\n\n- `allow-start-preview`\n- `allow-stop-preview`\n- `allow-capture`\n- `allow-flip-camera`\n- `allow-set-flash`\n- `allow-set-zoom`\n- `allow-get-zoom`\n- `allow-get-zoom-range`\n- `allow-is-flash-available`\n- `allow-start-recording`\n- `allow-stop-recording`\n- `allow-save-to-gallery`\n- `allow-request-permissions`\n- `allow-check-permissions`\n- `allow-open-app-settings`"
         }
       ]
     }

@@ -10,6 +10,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.drawable.Drawable
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -80,11 +81,17 @@ class ZoomOptions {
 @InvokeArg
 class SaveToGalleryOptions {
   var path: String? = null
+  var type: String? = null
 }
 
 @InvokeArg
 class StartRecordingOptions {
   var onProgress: Channel? = null
+}
+
+@InvokeArg
+class StopRecordingOptions {
+  var thumbnail: Boolean = false
 }
 
 @TauriPlugin(
@@ -119,6 +126,7 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
 
   private var captureInvoke: Invoke? = null
   private var stopRecordingInvoke: Invoke? = null
+  private var pendingThumbnail = false
 
   private var requestPermissionResponse: JSObject? = null
 
@@ -327,6 +335,46 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
     }
   }
 
+  private fun encodeThumbnail(bitmap: Bitmap, maxDim: Int = 256): String {
+    val scale = minOf(
+      maxDim.toFloat() / bitmap.width,
+      maxDim.toFloat() / bitmap.height,
+      1f
+    )
+    val scaled = if (scale < 1f) {
+      Bitmap.createScaledBitmap(
+        bitmap,
+        (bitmap.width * scale).toInt().coerceAtLeast(1),
+        (bitmap.height * scale).toInt().coerceAtLeast(1),
+        true
+      )
+    } else {
+      bitmap
+    }
+    val out = ByteArrayOutputStream()
+    scaled.compress(Bitmap.CompressFormat.JPEG, 80, out)
+    if (scaled !== bitmap) scaled.recycle()
+    bitmap.recycle()
+    return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+  }
+
+  private fun makeVideoThumbnail(file: File): String? {
+    val retriever = MediaMetadataRetriever()
+    return try {
+      retriever.setDataSource(file.absolutePath)
+      val frame = retriever.getFrameAtTime(100_000) ?: retriever.getFrameAtTime(0) ?: return null
+      encodeThumbnail(frame)
+    } catch (_: Exception) {
+      null
+    } finally {
+      try {
+        retriever.release()
+      } catch (_: Exception) {
+        // ignored
+      }
+    }
+  }
+
   // -------------------------------------------------------------------------
   // Camera controls
   // -------------------------------------------------------------------------
@@ -368,6 +416,46 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
     val factor = CameraMath.clampZoom(args.factor, max = maxZoom.toDouble()).toFloat()
     camera.cameraControl.setZoomRatio(factor)
     invoke.resolve()
+  }
+
+  @Command
+  fun getZoom(invoke: Invoke) {
+    val camera = camera
+    if (camera == null) {
+      invoke.reject("Camera preview is not active. Call startPreview() first.")
+      return
+    }
+    val zoom = camera.cameraInfo.zoomState.value?.zoomRatio ?: 1f
+    invoke.resolveObject(zoom.toDouble())
+  }
+
+  @Command
+  fun getZoomRange(invoke: Invoke) {
+    val camera = camera
+    if (camera == null) {
+      invoke.reject("Camera preview is not active. Call startPreview() first.")
+      return
+    }
+    val zoomState = camera.cameraInfo.zoomState.value
+    if (zoomState == null) {
+      invoke.reject("Zoom state is not available")
+      return
+    }
+    val result = JSObject()
+    result.put("min", zoomState.minZoomRatio.toDouble())
+    result.put("max", zoomState.maxZoomRatio.toDouble())
+    result.put("current", zoomState.zoomRatio.toDouble())
+    invoke.resolve(result)
+  }
+
+  @Command
+  fun isFlashAvailable(invoke: Invoke) {
+    val camera = camera
+    if (camera == null) {
+      invoke.reject("Camera preview is not active. Call startPreview() first.")
+      return
+    }
+    invoke.resolveObject(camera.cameraInfo.hasFlashUnit())
   }
 
   // -------------------------------------------------------------------------
@@ -435,8 +523,12 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
             val jsObject = JSObject()
             jsObject.put("path", file.absolutePath)
             jsObject.put("duration", durationSec)
+            if (pendingThumbnail) {
+              makeVideoThumbnail(file)?.let { jsObject.put("thumbnail", it) }
+            }
             stopRecordingInvoke?.resolve(jsObject)
           }
+          pendingThumbnail = false
           stopRecordingInvoke = null
         }
         else -> {}
@@ -447,11 +539,13 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
 
   @Command
   fun stopRecording(invoke: Invoke) {
+    val args = invoke.parseArgs(StopRecordingOptions::class.java)
     val activeRecording = recording
     if (activeRecording == null) {
       invoke.reject("Recording is not active. Call startRecording() first.")
       return
     }
+    pendingThumbnail = args.thumbnail
     stopRecordingInvoke = invoke
     activeRecording.stop()
   }
@@ -474,32 +568,38 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
       return
     }
 
+    val kind = CameraMath.mediaKind(path, args.type)
+    val isVideo = kind == "video"
+    val collection = if (isVideo) {
+      MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+    } else {
+      MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+    }
+    val directory = if (isVideo) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_PICTURES
+
     try {
       val values = ContentValues().apply {
-        put(MediaStore.Images.Media.DISPLAY_NAME, file.name)
-        put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+        put(MediaStore.MediaColumns.DISPLAY_NAME, file.name)
+        put(MediaStore.MediaColumns.MIME_TYPE, CameraMath.mimeType(path, kind))
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-          put(
-            MediaStore.Images.Media.RELATIVE_PATH,
-            Environment.DIRECTORY_PICTURES
-          )
-          put(MediaStore.Images.Media.IS_PENDING, 1)
+          put(MediaStore.MediaColumns.RELATIVE_PATH, directory)
+          put(MediaStore.MediaColumns.IS_PENDING, 1)
         }
       }
       val resolver = activity.contentResolver
-      val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-        ?: throw Exception("Failed to insert image into gallery")
+      val uri = resolver.insert(collection, values)
+        ?: throw Exception("Failed to insert media into gallery")
       resolver.openOutputStream(uri)?.use { output ->
         file.inputStream().use { input -> input.copyTo(output) }
       }
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         values.clear()
-        values.put(MediaStore.Images.Media.IS_PENDING, 0)
+        values.put(MediaStore.MediaColumns.IS_PENDING, 0)
         resolver.update(uri, values, null, null)
       }
       invoke.resolve()
     } catch (e: Exception) {
-      invoke.reject(e.message ?: "Failed to save image to gallery")
+      invoke.reject(e.message ?: "Failed to save media to gallery")
     }
   }
 

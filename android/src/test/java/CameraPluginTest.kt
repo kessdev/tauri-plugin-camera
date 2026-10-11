@@ -46,6 +46,28 @@ class CameraPluginTest {
   }
 
   @Test
+  fun mediaKindInfersFromExtensionAndOverride() {
+    assertEquals("image", CameraMath.mediaKind("/tmp/a.jpg", null))
+    assertEquals("image", CameraMath.mediaKind("/tmp/a.png", null))
+    assertEquals("video", CameraMath.mediaKind("/tmp/a.mp4", null))
+    assertEquals("video", CameraMath.mediaKind("/tmp/a.MOV", null))
+    assertEquals("video", CameraMath.mediaKind("/tmp/a.jpg", "video"))
+    assertEquals("image", CameraMath.mediaKind("/tmp/a.mp4", "image"))
+    assertEquals("image", CameraMath.mediaKind(null, null))
+  }
+
+  @Test
+  fun mimeTypeMatchesExtensionAndKind() {
+    assertEquals("video/mp4", CameraMath.mimeType("/tmp/a.mp4", "video"))
+    assertEquals("video/quicktime", CameraMath.mimeType("/tmp/a.mov", "video"))
+    assertEquals("video/webm", CameraMath.mimeType("/tmp/a.webm", "video"))
+    assertEquals("image/jpeg", CameraMath.mimeType("/tmp/a.jpg", "image"))
+    assertEquals("image/png", CameraMath.mimeType("/tmp/a.png", "image"))
+    assertEquals("video/mp4", CameraMath.mimeType("/tmp/noext", "video"))
+    assertEquals("image/jpeg", CameraMath.mimeType("/tmp/noext", "image"))
+  }
+
+  @Test
   fun progressThrottlingSkipsFrequentAndUnchangedMessages() {
     assertTrue(RecordingMath.progressDue(lastEmitNanos = 0L, nowNanos = 1L, changed = true))
     assertFalse(
