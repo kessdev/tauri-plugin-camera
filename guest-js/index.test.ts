@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
@@ -7,16 +7,20 @@ vi.mock('@tauri-apps/api/core', () => ({
   checkPermissions: vi.fn()
 }))
 
+import type { Channel } from '@tauri-apps/api/core'
 import { invoke, requestPermissions, checkPermissions } from '@tauri-apps/api/core'
 import {
   capture,
   startPreview,
+  startRecording,
+  stopRecording,
   flipCamera,
   setFlash,
   setZoom,
   requestPermissions as requestCameraPermissions,
   checkPermissions as checkCameraPermissions,
-  convertFileSrc
+  convertFileSrc,
+  type RecordingProgress
 } from './index'
 
 const invokeMock = vi.mocked(invoke)
@@ -98,5 +102,105 @@ describe('desktop degradation', () => {
 
   it('setFlash throws on desktop', async () => {
     await expect(setFlash('on')).rejects.toThrow(/not supported on desktop/)
+  })
+})
+
+describe('desktop recording telemetry', () => {
+  class MockMediaRecorder {
+    static instances: MockMediaRecorder[] = []
+    stream: unknown
+    mimeType = 'video/webm'
+    state = 'inactive'
+    ondataavailable: ((e: { data: { size: number } }) => void) | null = null
+    onstop: (() => void) | null = null
+    onerror: (() => void) | null = null
+    constructor(stream: unknown) {
+      this.stream = stream
+      MockMediaRecorder.instances.push(this)
+    }
+    start(): void {
+      this.state = 'recording'
+    }
+    stop(): void {
+      this.state = 'inactive'
+      this.onstop?.()
+    }
+  }
+
+  let clock = 0
+
+  function fakeChannel(): { onmessage: ReturnType<typeof vi.fn> } {
+    return { onmessage: vi.fn() }
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    clock = 0
+    vi.spyOn(performance, 'now').mockImplementation(() => clock)
+    MockMediaRecorder.instances = []
+
+    const stream = { getTracks: () => [{ stop: vi.fn() }] }
+    vi.stubGlobal('navigator', {
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+      mediaDevices: { getUserMedia: vi.fn().mockResolvedValue(stream) }
+    })
+    vi.stubGlobal('document', {
+      createElement: () => ({
+        muted: false,
+        playsInline: false,
+        play: vi.fn().mockResolvedValue(undefined)
+      })
+    })
+    vi.stubGlobal('MediaRecorder', MockMediaRecorder)
+    vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(() => 'blob:mock') })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it('emits telemetry to the onProgress channel', async () => {
+    const channel = fakeChannel()
+    await startRecording({ onProgress: channel as unknown as Channel<RecordingProgress> })
+
+    MockMediaRecorder.instances[0].ondataavailable?.({ data: { size: 2000 } })
+    clock = 1000
+    vi.advanceTimersByTime(250)
+
+    expect(channel.onmessage).toHaveBeenCalledTimes(1)
+    expect(channel.onmessage).toHaveBeenCalledWith({
+      duration: 1,
+      bytesRecorded: 2000,
+      bitrate: 16000
+    })
+
+    await stopRecording()
+  })
+
+  it('stops emitting after recording ends', async () => {
+    const channel = fakeChannel()
+    await startRecording({ onProgress: channel as unknown as Channel<RecordingProgress> })
+    MockMediaRecorder.instances[0].ondataavailable?.({ data: { size: 500 } })
+    clock = 1000
+    vi.advanceTimersByTime(250)
+    const callsBefore = channel.onmessage.mock.calls.length
+
+    await stopRecording()
+    clock = 5000
+    vi.advanceTimersByTime(2000)
+
+    expect(channel.onmessage.mock.calls.length).toBe(callsBefore)
+  })
+
+  it('records without telemetry when no channel is provided', async () => {
+    await startRecording()
+    MockMediaRecorder.instances[0].ondataavailable?.({ data: { size: 100 } })
+    clock = 1000
+    vi.advanceTimersByTime(250)
+
+    const video = await stopRecording()
+    expect(video.url).toBe('blob:mock')
   })
 })

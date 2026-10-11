@@ -42,6 +42,7 @@ import app.tauri.annotation.InvokeArg
 import app.tauri.annotation.Permission
 import app.tauri.annotation.PermissionCallback
 import app.tauri.annotation.TauriPlugin
+import app.tauri.plugin.Channel
 import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
@@ -81,6 +82,11 @@ class SaveToGalleryOptions {
   var path: String? = null
 }
 
+@InvokeArg
+class StartRecordingOptions {
+  var onProgress: Channel? = null
+}
+
 @TauriPlugin(
   permissions = [
     Permission(strings = [Manifest.permission.CAMERA], alias = PERMISSION_ALIAS_CAMERA),
@@ -98,6 +104,11 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
   private var videoCapture: VideoCapture<Recorder>? = null
   private var recording: Recording? = null
   private var recordingStartedAtNanos = 0L
+
+  private var progressChannel: Channel? = null
+  private var lastProgressEmitNanos = 0L
+  private var lastProgressDurationNanos = -1L
+  private var lastProgressBytes = -1L
 
   private var executor: ExecutorService = Executors.newSingleThreadExecutor()
 
@@ -201,6 +212,7 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
         if (!it.isClosed) it.close()
       }
       recording = null
+      clearProgressChannel()
       if (cameraProvider != null) {
         cameraProvider?.unbindAll()
         val parent = webView.parent as ViewGroup
@@ -362,8 +374,32 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
   // Video recording
   // -------------------------------------------------------------------------
 
+  private fun resetProgressTracking() {
+    lastProgressEmitNanos = 0L
+    lastProgressDurationNanos = -1L
+    lastProgressBytes = -1L
+  }
+
+  private fun clearProgressChannel() {
+    progressChannel = null
+    resetProgressTracking()
+  }
+
+  private fun maybeEmitProgress(durationNanos: Long, bytesRecorded: Long) {
+    val channel = progressChannel ?: return
+    val now = System.nanoTime()
+    val changed =
+      durationNanos != lastProgressDurationNanos || bytesRecorded != lastProgressBytes
+    if (!RecordingMath.progressDue(lastProgressEmitNanos, now, changed)) return
+    lastProgressEmitNanos = now
+    lastProgressDurationNanos = durationNanos
+    lastProgressBytes = bytesRecorded
+    channel.sendObject(RecordingMath.progressPayload(durationNanos, bytesRecorded))
+  }
+
   @Command
   fun startRecording(invoke: Invoke) {
+    val args = invoke.parseArgs(StartRecordingOptions::class.java)
     val videoCapture = videoCapture
     if (videoCapture == null) {
       invoke.reject("Camera preview is not active. Call startPreview() first.")
@@ -381,10 +417,17 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
       .withAudioEnabled()
 
     stopRecordingInvoke = null
+    progressChannel = args.onProgress
+    resetProgressTracking()
     recordingStartedAtNanos = System.nanoTime()
     recording = pendingRecording.start(executor) { event ->
       when (event) {
+        is VideoRecordEvent.Status -> {
+          val stats = event.recordingStats
+          maybeEmitProgress(stats.recordedDurationNanos, stats.numBytesRecorded)
+        }
         is VideoRecordEvent.Finalize -> {
+          clearProgressChannel()
           if (event.hasError()) {
             stopRecordingInvoke?.reject(event.cause?.message ?: "Video recording failed")
           } else {

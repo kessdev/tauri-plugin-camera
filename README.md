@@ -17,6 +17,8 @@ photo gallery, and camera permission management.
 > plus `<video>`/`<canvas>`. On mobile it uses a native preview (CameraX on Android,
 > AVFoundation on iOS) for full control and quality.
 
+> **Development note (AI assistance).** This plugin is being developed with the assistance of AI tools. AI may have generated parts of the code, tests and documentation. Every change is reviewed and verified by maintainers (automated tests and CI) before release, but we disclose this for transparency. Please report any issue you find.
+
 ## Install
 
 Add the Rust crate to `src-tauri/Cargo.toml`:
@@ -167,6 +169,44 @@ await startRecording()
 const video = await stopRecording()
 // video: { path, duration } (mobile) | { duration, blob, url } (desktop)
 ```
+
+### Recording progress (telemetry)
+
+Pass an `onProgress` channel to `startRecording()` to receive live telemetry while
+the recording is in progress. The channel is optional: omit it and recording
+behaves exactly as before.
+
+```ts
+import { Channel } from '@tauri-apps/api/core'
+import { startRecording, stopRecording, type RecordingProgress } from 'tauri-plugin-camera-kessdev'
+
+const progress = new Channel<RecordingProgress>()
+progress.onmessage = (p) => {
+  // p: { duration, bytesRecorded?, bitrate? }
+  console.log(`${p.duration.toFixed(1)}s`, p.bytesRecorded, 'bytes')
+}
+
+await startRecording({ onProgress: progress })
+// ... user records ...
+const video = await stopRecording()
+```
+
+`RecordingProgress` fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `duration` | `number` | Elapsed recording time in seconds. Always present. |
+| `bytesRecorded` | `number?` | Bytes written so far, when the platform reports it. |
+| `bitrate` | `number?` | Average bitrate in bits per second, when derivable. |
+
+Platform notes:
+
+- **Android**: telemetry is derived from CameraX `VideoRecordEvent.Status`, emitted at roughly 1 Hz natively. `bytesRecorded` is accurate.
+- **iOS**: telemetry is sampled from `AVCaptureMovieFileOutput` every 500 ms. `bytesRecorded` is omitted until `recordedFileSize` becomes available, so early messages may only carry `duration`.
+- **Desktop**: `duration` is computed from `performance.now()` and `bytesRecorded` from `MediaRecorder` data chunks. Because `MediaRecorder` only emits a chunk every 1000 ms, `bytesRecorded` can lag by up to one second.
+
+Messages are throttled to about 4 per second and stop as soon as the recording
+ends. Telemetry is never emitted after `stopRecording()` resolves.
 
 ### Camera controls
 
@@ -321,8 +361,9 @@ destination from the generated Xcode project (`src-tauri/gen/apple`).
 | `flipCamera()` | ✓ | ✗ (throws) |
 | `setFlash(mode)` | ✓ | ✗ (throws) |
 | `setZoom(factor)` | ✓ | ✗ (throws) |
-| `startRecording()` | ✓ `VideoCapture` / `AVCaptureMovieFileOutput` | ✓ `MediaRecorder` |
+| `startRecording(options?)` | ✓ `VideoCapture` / `AVCaptureMovieFileOutput` | ✓ `MediaRecorder` |
 | `stopRecording()` | ✓ | ✓ |
+| `RecordingProgress` telemetry (`onProgress` channel) | ✓ | ✓ |
 | `saveToGallery(path)` | ✓ | ✗ (throws) |
 | `checkPermissions()` | ✓ | ✓ |
 | `requestPermissions()` | ✓ | ✓ |

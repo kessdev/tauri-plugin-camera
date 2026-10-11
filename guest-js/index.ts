@@ -4,7 +4,7 @@ import {
   requestPermissions as requestPermissions_,
   checkPermissions as checkPermissions_
 } from '@tauri-apps/api/core'
-import type { PermissionState } from '@tauri-apps/api/core'
+import type { Channel, PermissionState } from '@tauri-apps/api/core'
 
 export type { PermissionState } from '@tauri-apps/api/core'
 export { convertFileSrc }
@@ -48,6 +48,27 @@ export interface Video {
 }
 
 /**
+ * Live telemetry emitted while a video recording is in progress.
+ *
+ * Delivered through the optional `onProgress` channel passed to
+ * `startRecording()`. The `bytesRecorded` and `bitrate` fields are omitted
+ * when the platform cannot determine them at that moment.
+ */
+export interface RecordingProgress {
+  /** Elapsed recording time in seconds. */
+  duration: number
+  /** Bytes written to the output so far. */
+  bytesRecorded?: number
+  /** Average bitrate in bits per second, derived from `bytesRecorded`. */
+  bitrate?: number
+}
+
+export interface StartRecordingOptions {
+  /** Receives live recording telemetry while the recording is active. */
+  onProgress?: Channel<RecordingProgress>
+}
+
+/**
  * Detects whether the current runtime is a Tauri mobile webview (Android/iOS).
  * Desktop runtimes fall through to the getUserMedia-based backend.
  */
@@ -65,7 +86,38 @@ let activeStream: MediaStream | null = null
 let activeVideo: HTMLVideoElement | null = null
 let mediaRecorder: MediaRecorder | null = null
 let recordedChunks: Blob[] = []
+let recordedBytes = 0
 let recordingStartedAt = 0
+let progressTimer: ReturnType<typeof setInterval> | null = null
+
+/** Minimum interval between desktop progress messages (~4 Hz). */
+const RECORDING_PROGRESS_INTERVAL_MS = 250
+/** Ask MediaRecorder for data chunks at least this often so size is known live. */
+const RECORDING_TIMESLICE_MS = 1000
+
+function buildRecordingProgress(duration: number, bytes: number): RecordingProgress {
+  const progress: RecordingProgress = { duration, bytesRecorded: bytes }
+  if (duration > 0) {
+    progress.bitrate = Math.round((bytes * 8) / duration)
+  }
+  return progress
+}
+
+function progressesAreEqual(a: RecordingProgress | null, b: RecordingProgress): boolean {
+  return (
+    a != null &&
+    a.duration === b.duration &&
+    a.bytesRecorded === b.bytesRecorded &&
+    a.bitrate === b.bitrate
+  )
+}
+
+function stopProgressTimer(): void {
+  if (progressTimer !== null) {
+    clearInterval(progressTimer)
+    progressTimer = null
+  }
+}
 
 async function ensureDesktopStream(options?: StartPreviewOptions): Promise<MediaStream> {
   if (activeStream) return activeStream
@@ -91,11 +143,13 @@ async function ensureDesktopStream(options?: StartPreviewOptions): Promise<Media
 }
 
 function teardownDesktopStream(): void {
+  stopProgressTimer()
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     mediaRecorder.stop()
   }
   mediaRecorder = null
   recordedChunks = []
+  recordedBytes = 0
   if (activeStream) {
     activeStream.getTracks().forEach((t) => t.stop())
   }
@@ -221,9 +275,9 @@ export async function setZoom(factor: number): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /** Starts video recording (with audio). */
-export async function startRecording(): Promise<void> {
+export async function startRecording(options?: StartRecordingOptions): Promise<void> {
   if (isMobile()) {
-    await invoke('plugin:camera-kessdev|start_recording')
+    await invoke('plugin:camera-kessdev|start_recording', { ...options })
     return
   }
 
@@ -244,12 +298,32 @@ export async function startRecording(): Promise<void> {
   activeVideo = video
 
   recordedChunks = []
+  recordedBytes = 0
   mediaRecorder = new MediaRecorder(stream)
   mediaRecorder.ondataavailable = (event) => {
-    if (event.data.size > 0) recordedChunks.push(event.data)
+    if (event.data.size > 0) {
+      recordedChunks.push(event.data)
+      recordedBytes += event.data.size
+    }
   }
   recordingStartedAt = performance.now()
-  mediaRecorder.start()
+  mediaRecorder.start(RECORDING_TIMESLICE_MS)
+
+  const onProgress = options?.onProgress
+  if (onProgress) {
+    stopProgressTimer()
+    let last: RecordingProgress | null = null
+    progressTimer = setInterval(() => {
+      const progress = buildRecordingProgress(
+        (performance.now() - recordingStartedAt) / 1000,
+        recordedBytes
+      )
+      if (!progressesAreEqual(last, progress)) {
+        last = progress
+        onProgress.onmessage(progress)
+      }
+    }, RECORDING_PROGRESS_INTERVAL_MS)
+  }
 }
 
 /** Stops video recording and returns the recorded media. */
@@ -263,6 +337,7 @@ export async function stopRecording(): Promise<Video> {
   }
 
   const duration = (performance.now() - recordingStartedAt) / 1000
+  stopProgressTimer()
 
   return await new Promise<Video>((resolve, reject) => {
     mediaRecorder!.onstop = () => {
@@ -270,6 +345,7 @@ export async function stopRecording(): Promise<Video> {
       const blob = new Blob(recordedChunks, { type })
       const url = URL.createObjectURL(blob)
       recordedChunks = []
+      recordedBytes = 0
       mediaRecorder = null
       resolve({ duration, blob, url })
     }

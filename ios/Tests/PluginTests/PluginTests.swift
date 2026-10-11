@@ -27,4 +27,30 @@ final class CameraPluginTests: XCTestCase {
     let options = try JSONDecoder().decode(SaveToGalleryOptions.self, from: data)
     XCTAssertEqual(options.path, "/tmp/photo.jpg")
   }
+
+  func testStartRecordingOptionsDecodesWithoutChannel() throws {
+    let data = Data("{}".utf8)
+    let options = try JSONDecoder().decode(StartRecordingOptions.self, from: data)
+    XCTAssertNil(options.onProgress)
+  }
+
+  func testRecordingProgressOmitsUnknownSize() {
+    let progress = makeRecordingProgress(duration: 1.5, bytesRecorded: 0)
+    XCTAssertEqual(progress.duration, 1.5)
+    XCTAssertNil(progress.bytesRecorded)
+    XCTAssertNil(progress.bitrate)
+  }
+
+  func testRecordingProgressIncludesSizeAndBitrate() {
+    let progress = makeRecordingProgress(duration: 2.0, bytesRecorded: 1000)
+    XCTAssertEqual(progress.bytesRecorded, 1000)
+    XCTAssertEqual(progress.bitrate ?? 0, 4000, accuracy: 1e-9)
+  }
+
+  func testRecordingProgressEncodesCamelCaseAndOmitsNil() throws {
+    let progress = makeRecordingProgress(duration: 1.0, bytesRecorded: 0)
+    let data = try JSONEncoder().encode(progress)
+    let json = String(decoding: data, as: UTF8.self)
+    XCTAssertEqual(json, #"{"duration":1}"#)
+  }
 }
