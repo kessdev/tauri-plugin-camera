@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.1-beta.3]
+
+- [`ab91377`](https://github.com/kessdev/tauri-plugin-camera/commit/ab913779ac92c4cca0864d0804e4b49324d01aa1) Align the desktop `webview2-com` dependency with the version wry links against,
+    restoring the Windows build after the `tauri` 2.12 upgrade.
+
 ## [0.1.1-beta.2]
 
 - [`95cc201`](https://github.com/kessdev/tauri-plugin-camera/commit/95cc201f19ae623bfcedf3e5b9e4569f17e3010f) Restore the desktop camera and microphone webview permission handler that was
