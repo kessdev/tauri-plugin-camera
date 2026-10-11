@@ -40,6 +40,14 @@ struct GetCapabilitiesOptions: Decodable {
   var cameraId: String?
 }
 
+/// Encodable payload for a camera entry returned by `getAvailableCameras`.
+struct CameraInfoPayload: Encodable {
+  let id: String
+  let lens: String
+  let label: String
+  let facing: String?
+}
+
 private let videoExtensions: Set<String> = ["mp4", "mov", "m4v", "webm", "3gp", "mkv"]
 
 /// Whether the file at `path` is a video, honoring an explicit type override.
@@ -61,11 +69,9 @@ func facingName(for position: AVCaptureDevice.Position) -> String? {
 
 /// Best-effort lens hint from an iOS capture device type.
 func lensName(for deviceType: AVCaptureDevice.DeviceType) -> String {
-  switch deviceType {
-  case .builtInUltraWideCamera: return "ultraWide"
-  case .builtInTelephotoCamera: return "telephoto"
-  default: return "wide"
-  }
+  if deviceType == .builtInUltraWideCamera { return "ultraWide" }
+  if deviceType == .builtInTelephotoCamera { return "telephoto" }
+  return "wide"
 }
 
 /// Maps iOS focus modes to the plugin's declarative focus modes.
@@ -439,16 +445,13 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
   }
 
   @objc private func getAvailableCameras(_ invoke: Invoke) {
-    let cameras: [[String: String]] = availableLenses().map { device in
-      var entry: [String: String] = [
-        "id": device.uniqueID,
-        "lens": lensName(for: device.deviceType),
-        "label": device.localizedName,
-      ]
-      if let facing = facingName(for: device.position) {
-        entry["facing"] = facing
-      }
-      return entry
+    let cameras: [CameraInfoPayload] = availableLenses().map { device in
+      CameraInfoPayload(
+        id: device.uniqueID,
+        lens: lensName(for: device.deviceType),
+        label: device.localizedName,
+        facing: facingName(for: device.position)
+      )
     }
     invoke.resolve(cameras)
   }

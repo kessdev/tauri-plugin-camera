@@ -484,12 +484,12 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
     return CameraMath.lensFromEquivalentFocalLength(equivalent)
   }
 
-  private fun cameraInfoToJsObject(info: CameraXInfo): JSObject {
-    val obj = JSObject()
-    obj.put("id", Camera2CameraInfo.from(info).cameraId)
-    CameraMath.facingFromLensFacing(info.lensFacing)?.let { obj.put("facing", it) }
-    lensName(info)?.let { obj.put("lens", it) }
-    return obj
+  private fun cameraInfoToMap(info: CameraXInfo): Map<String, Any> {
+    val entry = mutableMapOf<String, Any>()
+    entry["id"] = Camera2CameraInfo.from(info).cameraId
+    CameraMath.facingFromLensFacing(info.lensFacing)?.let { entry["facing"] = it }
+    lensName(info)?.let { entry["lens"] = it }
+    return entry
   }
 
   private fun selectCameraInfo(provider: ProcessCameraProvider, cameraId: String?): CameraXInfo? {
@@ -549,11 +549,11 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
   fun getAvailableCameras(invoke: Invoke) {
     ensureCameraProvider(
       onReady = { provider ->
-        val result = JSArray()
+        val result = mutableListOf<Map<String, Any>>()
         for (info in provider.availableCameraInfos) {
-          result.put(cameraInfoToJsObject(info))
+          result.add(cameraInfoToMap(info))
         }
-        invoke.resolve(result)
+        invoke.resolveObject(result)
       },
       onError = { message -> invoke.reject(message) }
     )
