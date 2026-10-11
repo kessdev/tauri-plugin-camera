@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1-beta.4]
+
+- [`768f012`](https://github.com/kessdev/tauri-plugin-camera/commit/768f01258a9d631e539390a744cfee79e4e77ec3) Add `getZoom`/`getZoomRange`/`isFlashAvailable`, save videos to the gallery,
+    and opt-in video thumbnails via `stopRecording({ thumbnail: true })`.
+- [`768f012`](https://github.com/kessdev/tauri-plugin-camera/commit/768f01258a9d631e539390a744cfee79e4e77ec3) Add optional live recording progress telemetry via an `onProgress` channel in
+    `startRecording`.
+
 ## [0.1.1-beta.3]
 
 - [`ab91377`](https://github.com/kessdev/tauri-plugin-camera/commit/ab913779ac92c4cca0864d0804e4b49324d01aa1) Align the desktop `webview2-com` dependency with the version wry links against,
