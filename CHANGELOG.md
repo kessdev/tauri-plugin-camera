@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.0-beta.1]
+
+- [`3852d23`](https://github.com/kessdev/tauri-plugin-camera/commit/3852d23b084ba635cfe7f5d2719144b05c8b4d16) Add fine camera controls: torch (continuous light), tap-to-focus and focus mode,
+    exposure compensation and mode, and white balance (mode + Kelvin temperature).
+    Extend `getCapabilities()` with `exposureRange`, `exposureModes` and
+    `whiteBalanceModes`.
+- [`700bb9b`](https://github.com/kessdev/tauri-plugin-camera/commit/700bb9b40ae2ad685bd4b70855e83794e0f8f1aa) Add `startPreview({ cameraId })` to open the preview with a specific camera/lens
+    (id from `getAvailableCameras()`); `cameraId` takes precedence over `camera`
+    (front/back).
+- [`700bb9b`](https://github.com/kessdev/tauri-plugin-camera/commit/700bb9b40ae2ad685bd4b70855e83794e0f8f1aa) Add capture configuration: `capture({ resolution, aspectRatio, format, quality })`
+    and `startRecording({ quality, fps, bitrate })`. Extend `getCapabilities()` with
+    `photoResolutions`, `photoAspects`, `videoQualities` and `videoFps`.
+
 ## [0.2.0-beta.0]
 
 - [`b5ef30d`](https://github.com/kessdev/tauri-plugin-camera/commit/b5ef30d40496f223f47137173b6de22b867e5ca6) Add `getAvailableCameras()` and `getCapabilities()` for camera introspection.

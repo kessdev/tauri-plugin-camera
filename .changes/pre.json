@@ -2,6 +2,9 @@
   "tag": "beta",
   "changes": [
     ".changes/add-camera-capabilities.md",
+    ".changes/add-camera-controls.md",
+    ".changes/add-camera-lens-selection.md",
+    ".changes/add-capture-config.md",
     ".changes/beta.md",
     ".changes/complete-camera-basics.md",
     ".changes/desktop-permission.md",
