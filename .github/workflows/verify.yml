@@ -111,7 +111,15 @@ jobs:
 
       - name: build Android (debug) — generates tauri.settings.gradle
         working-directory: examples/tauri-app
-        run: npx tauri android build --debug
+        run: |
+          set +e
+          npx tauri android build --debug 2>&1 | tee /tmp/android-build.log
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -ne 0 ]; then
+            grep -m 25 -iE "^e: |error:|FAILURE:|What went wrong|> Task .*FAILED|Compilation error" /tmp/android-build.log | while IFS= read -r line; do echo "::error::$line"; done || true
+          fi
+          exit "$status"
 
       - name: run Kotlin unit tests
         working-directory: examples/tauri-app/src-tauri/gen/android
@@ -145,7 +153,14 @@ jobs:
           echo "scheme=$SCHEME simulator=$SIM"
           test -n "$SCHEME"
           test -n "$SIM"
-          xcodebuild test -scheme "$SCHEME" -destination "platform=iOS Simulator,name=$SIM"
+          set +e
+          xcodebuild test -scheme "$SCHEME" -destination "platform=iOS Simulator,name=$SIM" 2>&1 | tee /tmp/ios-build.log
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -ne 0 ]; then
+            grep -m 15 -i "error:" /tmp/ios-build.log | while IFS= read -r line; do echo "::error::$line"; done || true
+          fi
+          exit "$status"
 
   verify-windows:
     name: verify (windows)

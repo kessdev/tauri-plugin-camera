@@ -829,10 +829,10 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
 
   private func sessionPreset(forQuality quality: String) -> AVCaptureSession.Preset? {
     switch quality {
-    case "sd": return .sd
-    case "hd": return .hd1280x720
-    case "fhd": return .hd1920x1080
-    case "uhd": return .hd4K3840x2160
+    case "sd": return AVCaptureSession.Preset.vga640x480
+    case "hd": return AVCaptureSession.Preset.hd1280x720
+    case "fhd": return AVCaptureSession.Preset.hd1920x1080
+    case "uhd": return AVCaptureSession.Preset.hd4K3840x2160
     default: return nil
     }
   }

@@ -268,6 +268,7 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
     return CameraSelector.Builder().requireLensFacing(facing).build()
   }
 
+  @Suppress("DEPRECATION")
   private fun bindUseCases(
     provider: ProcessCameraProvider,
     cameraSelector: CameraSelector,
@@ -281,7 +282,6 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
       .setTargetRotation(previewView?.display?.rotation ?: Surface.ROTATION_0)
     captureOptions?.resolution?.let { res ->
       if (res.width > 0 && res.height > 0) {
-        @Suppress("DEPRECATION")
         imageBuilder.setTargetResolution(Size(res.width, res.height))
       }
     }
