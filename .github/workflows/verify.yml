@@ -111,27 +111,11 @@ jobs:
 
       - name: build Android (debug) — generates tauri.settings.gradle
         working-directory: examples/tauri-app
-        run: |
-          set +e
-          npx tauri android build --debug 2>&1 | tee /tmp/android-build.log
-          status=${PIPESTATUS[0]}
-          set -e
-          if [ "$status" -ne 0 ]; then
-            grep -m 15 -iE "error:|e: " /tmp/android-build.log | while IFS= read -r line; do echo "::error::$line"; done || true
-          fi
-          exit "$status"
+        run: npx tauri android build --debug
 
       - name: run Kotlin unit tests
         working-directory: examples/tauri-app/src-tauri/gen/android
-        run: |
-          set +e
-          ./gradlew test 2>&1 | tee /tmp/android-test.log
-          status=${PIPESTATUS[0]}
-          set -e
-          if [ "$status" -ne 0 ]; then
-            grep -m 15 -iE "error:|e: |FAILED" /tmp/android-test.log | while IFS= read -r line; do echo "::error::$line"; done || true
-          fi
-          exit "$status"
+        run: ./gradlew test
 
   verify-ios:
     name: verify (ios)
@@ -161,14 +145,7 @@ jobs:
           echo "scheme=$SCHEME simulator=$SIM"
           test -n "$SCHEME"
           test -n "$SIM"
-          set +e
-          xcodebuild test -scheme "$SCHEME" -destination "platform=iOS Simulator,name=$SIM" 2>&1 | tee /tmp/ios-build.log
-          status=${PIPESTATUS[0]}
-          set -e
-          if [ "$status" -ne 0 ]; then
-            grep -m 15 -i "error:" /tmp/ios-build.log | while IFS= read -r line; do echo "::error::$line"; done || true
-          fi
-          exit "$status"
+          xcodebuild test -scheme "$SCHEME" -destination "platform=iOS Simulator,name=$SIM"
 
   verify-windows:
     name: verify (windows)
