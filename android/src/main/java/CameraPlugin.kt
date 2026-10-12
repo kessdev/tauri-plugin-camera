@@ -12,6 +12,7 @@ import android.graphics.Color
 import android.graphics.ImageFormat
 import android.graphics.drawable.Drawable
 import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.params.RggbChannelVector
 import android.hardware.camera2.params.StreamConfigurationMap
 import android.media.MediaMetadataRetriever
@@ -289,6 +290,7 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
       when (ratio) {
         "4:3" -> imageBuilder.setTargetAspectRatio(AspectRatio.RATIO_4_3)
         "16:9" -> imageBuilder.setTargetAspectRatio(AspectRatio.RATIO_16_9)
+        else -> {}
       }
     }
     val imageCapture = imageBuilder.build()
@@ -587,7 +589,7 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
       return
     }
     setCaptureRequestOption(
-      camera, CameraCharacteristics.CONTROL_AF_MODE, CameraMath.afModeFromFocusMode(args.mode))
+      camera, CaptureRequest.CONTROL_AF_MODE, CameraMath.afModeFromFocusMode(args.mode))
     invoke.resolve()
   }
 
@@ -613,7 +615,7 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
       invoke.reject("Camera preview is not active. Call startPreview() first.")
       return
     }
-    setCaptureRequestOption(camera, CameraCharacteristics.CONTROL_AE_LOCK, args.mode == "locked")
+    setCaptureRequestOption(camera, CaptureRequest.CONTROL_AE_LOCK, args.mode == "locked")
     invoke.resolve()
   }
 
@@ -626,7 +628,7 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
     }
     if (args.mode == "locked") {
       val builder = CaptureRequestOptions.Builder()
-        .setCaptureRequestOption(CameraCharacteristics.CONTROL_AWB_MODE, CameraMath.AWB_MODE_OFF)
+        .setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, CameraMath.AWB_MODE_OFF)
       val kelvin = args.temperatureK
       if (kelvin != null && CameraMath.supportsManualAwb(
           characteristic(camera.cameraInfo, CameraCharacteristics.CONTROL_AWB_AVAILABLE_MODES)
@@ -634,13 +636,13 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
       ) {
         val gains = CameraMath.awbGainsFromKelvin(kelvin)
         builder.setCaptureRequestOption(
-          CameraCharacteristics.CONTROL_AWB_GAINS,
+          CaptureRequest.CONTROL_AWB_GAINS,
           RggbChannelVector(gains[0], gains[1], gains[2], gains[3])
         )
       }
       camera2Control(camera).setCaptureRequestOptions(builder.build())
     } else {
-      setCaptureRequestOption(camera, CameraCharacteristics.CONTROL_AWB_MODE, CameraMath.AWB_MODE_AUTO)
+      setCaptureRequestOption(camera, CaptureRequest.CONTROL_AWB_MODE, CameraMath.AWB_MODE_AUTO)
     }
     invoke.resolve()
   }
@@ -686,7 +688,7 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
 
   private fun <T> setCaptureRequestOption(
     camera: Camera,
-    key: CameraCharacteristics.Key<T>,
+    key: CaptureRequest.Key<T>,
     value: T
   ) {
     val options = CaptureRequestOptions.Builder().setCaptureRequestOption(key, value).build()
