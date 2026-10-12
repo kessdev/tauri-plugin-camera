@@ -22,6 +22,55 @@ internal object CameraMath {
 
   fun cameraDirectionBack(direction: String?): Boolean = direction != "front"
 
+  /** CameraMetadata LENS_FACING_* values. */
+  const val LENS_FACING_FRONT = 0
+  const val LENS_FACING_BACK = 1
+  const val LENS_FACING_EXTERNAL = 2
+
+  fun facingFromLensFacing(lensFacing: Int?): String? = when (lensFacing) {
+    LENS_FACING_FRONT -> "front"
+    LENS_FACING_BACK -> "back"
+    LENS_FACING_EXTERNAL -> "external"
+    else -> null
+  }
+
+  /** CameraMetadata CONTROL_AF_MODE_* values. */
+  const val AF_MODE_OFF = 0
+  const val AF_MODE_AUTO = 1
+  const val AF_MODE_MACRO = 2
+  const val AF_MODE_CONTINUOUS_VIDEO = 3
+  const val AF_MODE_CONTINUOUS_PICTURE = 4
+  const val AF_MODE_EDOF = 5
+
+  /** Maps Android AF modes to the plugin's declarative focus modes. */
+  fun focusModesFromAfModes(modes: IntArray?): List<String> {
+    if (modes == null) return emptyList()
+    val result = LinkedHashSet<String>()
+    for (mode in modes) {
+      when (mode) {
+        AF_MODE_AUTO, AF_MODE_MACRO -> result.add("auto")
+        AF_MODE_CONTINUOUS_VIDEO, AF_MODE_CONTINUOUS_PICTURE -> result.add("continuous")
+        else -> {}
+      }
+    }
+    return result.toList()
+  }
+
+  /**
+   * Best-effort lens hint from a 35mm-equivalent focal length (mm):
+   * ultraWide < 24, wide 24..49, telephoto >= 50. Null when unknown.
+   */
+  fun lensFromEquivalentFocalLength(equivalentMm: Float): String? = when {
+    equivalentMm <= 0f -> null
+    equivalentMm < 24f -> "ultraWide"
+    equivalentMm < 50f -> "wide"
+    else -> "telephoto"
+  }
+
+  /** Converts a focal length (mm) to its 35mm equivalent, or null if unknown. */
+  fun toEquivalentFocalLength(focalMm: Float, sensorWidthMm: Float): Float? =
+    if (focalMm > 0f && sensorWidthMm > 0f) focalMm * 36f / sensorWidthMm else null
+
   private val VIDEO_EXTENSIONS = setOf("mp4", "mov", "m4v", "webm", "3gp", "mkv")
 
   /** Infers the media kind ("image" | "video") from the path, honoring an override. */

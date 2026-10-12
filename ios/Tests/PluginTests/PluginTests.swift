@@ -74,4 +74,36 @@ final class CameraPluginTests: XCTestCase {
     let options = try JSONDecoder().decode(SaveToGalleryOptions.self, from: data)
     XCTAssertEqual(options.type, "video")
   }
+
+  func testDecodesGetCapabilitiesOptions() throws {
+    let withId = try JSONDecoder().decode(
+      GetCapabilitiesOptions.self, from: Data(#"{"cameraId":"abc"}"#.utf8))
+    XCTAssertEqual(withId.cameraId, "abc")
+
+    let withoutId = try JSONDecoder().decode(GetCapabilitiesOptions.self, from: Data("{}".utf8))
+    XCTAssertNil(withoutId.cameraId)
+  }
+
+  func testFacingNameMapsPositions() {
+    XCTAssertEqual(facingName(for: .front), "front")
+    XCTAssertEqual(facingName(for: .back), "back")
+    XCTAssertNil(facingName(for: .unspecified))
+  }
+
+  func testLensNameMapsDeviceTypes() {
+    XCTAssertEqual(lensName(for: .builtInUltraWideCamera), "ultraWide")
+    XCTAssertEqual(lensName(for: .builtInTelephotoCamera), "telephoto")
+    XCTAssertEqual(lensName(for: .builtInWideAngleCamera), "wide")
+    XCTAssertEqual(lensName(for: .builtInTrueDepthCamera), "wide")
+  }
+
+  func testFocusModeNamesMapsAndDeduplicates() {
+    XCTAssertEqual(focusModeNames(from: []), [])
+    XCTAssertEqual(focusModeNames(from: [.autoFocus]), ["auto"])
+    XCTAssertEqual(focusModeNames(from: [.locked, .continuousAutoFocus]), ["locked", "continuous"])
+    XCTAssertEqual(
+      focusModeNames(from: [.autoFocus, .autoFocus, .continuousAutoFocus]),
+      ["auto", "continuous"]
+    )
+  }
 }

@@ -128,10 +128,10 @@ import {
   stopRecording,
   flipCamera,
   setFlash,
-  isFlashAvailable,
   setZoom,
   getZoom,
-  getZoomRange,
+  getAvailableCameras,
+  getCapabilities,
   saveToGallery,
   checkPermissions,
   requestPermissions,
@@ -233,14 +233,38 @@ await flipCamera()
 await setFlash('on') // 'on' | 'off' | 'auto'
 await setZoom(2.0)
 
-// Query the active camera (mobile). Desktop has no zoom/flash control:
-const zoom = await getZoom()                       // number
-const range = await getZoomRange()                 // { min, max, current }
-const hasFlash = await isFlashAvailable()          // boolean (false on desktop)
+// Live state (mobile):
+const zoom = await getZoom() // number
 ```
 
-On desktop `getZoom()` and `getZoomRange()` reject with a descriptive error
-(consistent with `setZoom`), while `isFlashAvailable()` resolves to `false`.
+On desktop `getZoom()` rejects with a descriptive error (consistent with
+`setZoom`).
+
+### Camera introspection
+
+Use `getAvailableCameras()` to list the cameras (physical/logical lenses) and
+`getCapabilities()` to know what a camera *can* do, before trying:
+
+```ts
+const cameras = await getAvailableCameras()
+// [{ id: '0', facing: 'back', lens: 'wide' }, { id: '1', facing: 'front' }, ...]
+
+// No argument: the active camera, or the default (back) camera without a preview.
+const caps = await getCapabilities(cameras[0].id)
+// { cameraId, hasFlash, hasTorch, zoomRange?, supportsFocus, focusModes?,
+//   photoFormats?, supportsPause }
+```
+
+The plugin follows one rule to avoid ambiguity:
+
+- **What the hardware can do** -> `getCapabilities()` (declarative).
+- **What a value is right now** -> a dedicated live getter (e.g. `getZoom()`).
+
+Both work without an active preview on mobile. On desktop `getAvailableCameras()`
+works cold (labels may stay empty until camera permission has been granted once),
+while the hardware capabilities `zoomRange`, `hasTorch` and `focusModes` are
+omitted until a preview/recording stream is active; `hasFlash` is always `false`
+and `supportsPause` is `true`.
 
 ### Gallery
 
@@ -391,10 +415,10 @@ destination from the generated Xcode project (`src-tauri/gen/apple`).
 | `capture(options?)` | ✓ `ImageCapture` / `AVCapturePhotoOutput` | ✓ canvas |
 | `flipCamera()` | ✓ | ✗ (throws) |
 | `setFlash(mode)` | ✓ | ✗ (throws) |
-| `isFlashAvailable()` | ✓ | `false` |
 | `setZoom(factor)` | ✓ | ✗ (throws) |
 | `getZoom()` | ✓ | ✗ (throws) |
-| `getZoomRange()` | ✓ | ✗ (throws) |
+| `getAvailableCameras()` | ✓ | ✓ |
+| `getCapabilities(cameraId?)` | ✓ | ✓ (partial) |
 | `startRecording(options?)` | ✓ `VideoCapture` / `AVCaptureMovieFileOutput` | ✓ `MediaRecorder` |
 | `stopRecording(options?)` | ✓ | ✓ |
 | `RecordingProgress` telemetry (`onProgress` channel) | ✓ | ✓ |

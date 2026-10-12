@@ -11,8 +11,8 @@ Default permissions for the camera plugin
 - `allow-set-flash`
 - `allow-set-zoom`
 - `allow-get-zoom`
-- `allow-get-zoom-range`
-- `allow-is-flash-available`
+- `allow-get-available-cameras`
+- `allow-get-capabilities`
 - `allow-start-recording`
 - `allow-stop-recording`
 - `allow-save-to-gallery`
@@ -110,6 +110,58 @@ Denies the flip_camera command without any pre-configured scope.
 <tr>
 <td>
 
+`camera-kessdev:allow-get-available-cameras`
+
+</td>
+<td>
+
+Enables the get_available_cameras command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`camera-kessdev:deny-get-available-cameras`
+
+</td>
+<td>
+
+Denies the get_available_cameras command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`camera-kessdev:allow-get-capabilities`
+
+</td>
+<td>
+
+Enables the get_capabilities command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`camera-kessdev:deny-get-capabilities`
+
+</td>
+<td>
+
+Denies the get_capabilities command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `camera-kessdev:allow-get-zoom`
 
 </td>
@@ -129,58 +181,6 @@ Enables the get_zoom command without any pre-configured scope.
 <td>
 
 Denies the get_zoom command without any pre-configured scope.
-
-</td>
-</tr>
-
-<tr>
-<td>
-
-`camera-kessdev:allow-get-zoom-range`
-
-</td>
-<td>
-
-Enables the get_zoom_range command without any pre-configured scope.
-
-</td>
-</tr>
-
-<tr>
-<td>
-
-`camera-kessdev:deny-get-zoom-range`
-
-</td>
-<td>
-
-Denies the get_zoom_range command without any pre-configured scope.
-
-</td>
-</tr>
-
-<tr>
-<td>
-
-`camera-kessdev:allow-is-flash-available`
-
-</td>
-<td>
-
-Enables the is_flash_available command without any pre-configured scope.
-
-</td>
-</tr>
-
-<tr>
-<td>
-
-`camera-kessdev:deny-is-flash-available`
-
-</td>
-<td>
-
-Denies the is_flash_available command without any pre-configured scope.
 
 </td>
 </tr>

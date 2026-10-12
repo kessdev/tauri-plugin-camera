@@ -67,13 +67,56 @@ pub struct Video {
   pub thumbnail: Option<String>,
 }
 
-/// Supported zoom range of the active camera.
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+/// Supported zoom range of a camera (declarative, without the live value).
+#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ZoomRange {
   pub min: f64,
   pub max: f64,
-  pub current: f64,
+}
+
+/// Orientation of a camera.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CameraFacing {
+  Front,
+  Back,
+  External,
+}
+
+/// A camera (physical or logical lens) available on the device.
+#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CameraInfo {
+  /// Native, session-stable identifier.
+  pub id: String,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub facing: Option<CameraFacing>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub lens: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub label: Option<String>,
+}
+
+/// Declarative capabilities of a camera: what the hardware/platform *can* do.
+///
+/// Optional fields are omitted when the platform cannot determine them. Live
+/// values (e.g. the current zoom factor) are exposed by dedicated getters.
+#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CameraCapabilities {
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub camera_id: Option<String>,
+  pub has_flash: bool,
+  pub has_torch: bool,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub zoom_range: Option<ZoomRange>,
+  pub supports_focus: bool,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub focus_modes: Option<Vec<String>>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub photo_formats: Option<Vec<String>>,
+  pub supports_pause: bool,
 }
 
 /// Live telemetry emitted while a video recording is in progress.
@@ -153,15 +196,63 @@ mod tests {
 
   #[test]
   fn round_trips_zoom_range_camel_case() {
-    let range = ZoomRange {
-      min: 1.0,
-      max: 8.0,
-      current: 2.5,
-    };
+    let range = ZoomRange { min: 1.0, max: 8.0 };
     let json = serde_json::to_string(&range).unwrap();
-    assert_eq!(json, r#"{"min":1.0,"max":8.0,"current":2.5}"#);
+    assert_eq!(json, r#"{"min":1.0,"max":8.0}"#);
     let parsed: ZoomRange = serde_json::from_str(&json).unwrap();
-    assert_eq!(parsed.max, 8.0);
+    assert_eq!(parsed, range);
+  }
+
+  #[test]
+  fn serializes_camera_info_omitting_absent_fields() {
+    let camera = CameraInfo {
+      id: "0".into(),
+      facing: Some(CameraFacing::Back),
+      lens: Some("wide".into()),
+      label: None,
+    };
+    assert_eq!(
+      serde_json::to_string(&camera).unwrap(),
+      r#"{"id":"0","facing":"back","lens":"wide"}"#
+    );
+  }
+
+  #[test]
+  fn deserializes_camera_info_minimal() {
+    let camera: CameraInfo = serde_json::from_str(r#"{"id":"1"}"#).unwrap();
+    assert_eq!(camera.id, "1");
+    assert_eq!(camera.facing, None);
+    assert_eq!(camera.label, None);
+  }
+
+  #[test]
+  fn serializes_capabilities_omitting_unknown_fields() {
+    let caps = CameraCapabilities {
+      camera_id: Some("0".into()),
+      has_flash: true,
+      has_torch: false,
+      zoom_range: Some(ZoomRange { min: 1.0, max: 8.0 }),
+      supports_focus: false,
+      focus_modes: None,
+      photo_formats: None,
+      supports_pause: false,
+    };
+    assert_eq!(
+      serde_json::to_string(&caps).unwrap(),
+      r#"{"cameraId":"0","hasFlash":true,"hasTorch":false,"zoomRange":{"min":1.0,"max":8.0},"supportsFocus":false,"supportsPause":false}"#
+    );
+  }
+
+  #[test]
+  fn deserializes_capabilities_minimal() {
+    let caps: CameraCapabilities = serde_json::from_str(
+      r#"{"hasFlash":false,"hasTorch":false,"supportsFocus":false,"supportsPause":true}"#,
+    )
+    .unwrap();
+    assert!(!caps.has_flash);
+    assert!(caps.supports_pause);
+    assert_eq!(caps.zoom_range, None);
+    assert_eq!(caps.focus_modes, None);
   }
 
   #[test]

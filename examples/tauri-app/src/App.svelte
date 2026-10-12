@@ -10,6 +10,8 @@
     checkPermissions,
     requestPermissions,
     getPreviewStream,
+    getAvailableCameras,
+    getCapabilities,
     convertFileSrc
   } from 'tauri-plugin-camera-kessdev'
 
@@ -77,6 +79,16 @@
     try { await flipCamera(); updateLog('camera flipped') } catch (e) { updateLog(e) }
   }
 
+  async function _cameras() {
+    try {
+      const cameras = await getAvailableCameras()
+      updateLog(cameras)
+      if (cameras.length > 0) {
+        updateLog(await getCapabilities(cameras[0].id))
+      }
+    } catch (e) { updateLog(e) }
+  }
+
   async function _check() {
     try { updateLog(await checkPermissions()) } catch (e) { updateLog(e) }
   }
@@ -106,6 +118,7 @@
   <div class="row">
     <button onclick={_check}>Check Permissions</button>
     <button onclick={_request}>Request Permissions</button>
+    <button onclick={_cameras}>Cameras &amp; Capabilities</button>
   </div>
 
   {#if photoSrc}

@@ -80,4 +80,42 @@ class CameraPluginTest {
       RecordingMath.progressDue(lastEmitNanos = 1_000_000_000L, nowNanos = 2_000_000_000L, changed = false)
     )
   }
+
+  @Test
+  fun facingMapsFromLensFacing() {
+    assertEquals("front", CameraMath.facingFromLensFacing(CameraMath.LENS_FACING_FRONT))
+    assertEquals("back", CameraMath.facingFromLensFacing(CameraMath.LENS_FACING_BACK))
+    assertEquals("external", CameraMath.facingFromLensFacing(CameraMath.LENS_FACING_EXTERNAL))
+    assertEquals(null, CameraMath.facingFromLensFacing(-1))
+  }
+
+  @Test
+  fun focusModesMapFromAfModes() {
+    assertEquals(emptyList<String>(), CameraMath.focusModesFromAfModes(null))
+    assertEquals(
+      emptyList<String>(),
+      CameraMath.focusModesFromAfModes(intArrayOf(CameraMath.AF_MODE_OFF, CameraMath.AF_MODE_EDOF))
+    )
+    assertEquals(listOf("auto"), CameraMath.focusModesFromAfModes(intArrayOf(CameraMath.AF_MODE_AUTO)))
+    assertEquals(
+      listOf("auto", "continuous"),
+      CameraMath.focusModesFromAfModes(
+        intArrayOf(CameraMath.AF_MODE_MACRO, CameraMath.AF_MODE_CONTINUOUS_PICTURE)
+      )
+    )
+  }
+
+  @Test
+  fun lensHeuristicFromEquivalentFocalLength() {
+    assertEquals("ultraWide", CameraMath.lensFromEquivalentFocalLength(16f))
+    assertEquals("wide", CameraMath.lensFromEquivalentFocalLength(26f))
+    assertEquals("telephoto", CameraMath.lensFromEquivalentFocalLength(77f))
+    assertEquals(null, CameraMath.lensFromEquivalentFocalLength(0f))
+  }
+
+  @Test
+  fun equivalentFocalLengthScalesBySensorWidth() {
+    assertEquals(24f, CameraMath.toEquivalentFocalLength(4.8f, 7.2f)!!, 1e-4f)
+    assertEquals(null, CameraMath.toEquivalentFocalLength(4.8f, 0f))
+  }
 }
