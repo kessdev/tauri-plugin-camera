@@ -636,7 +636,11 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
       ) {
         val gains = CameraMath.awbGainsFromKelvin(kelvin)
         builder.setCaptureRequestOption(
-          CaptureRequest.CONTROL_AWB_GAINS,
+          CaptureRequest.COLOR_CORRECTION_MODE,
+          CameraMath.COLOR_CORRECTION_MODE_TRANSFORM_MATRIX
+        )
+        builder.setCaptureRequestOption(
+          CaptureRequest.COLOR_CORRECTION_GAINS,
           RggbChannelVector(gains[0], gains[1], gains[2], gains[3])
         )
       }

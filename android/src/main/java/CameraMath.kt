@@ -88,6 +88,9 @@ internal object CameraMath {
   const val AWB_MODE_OFF = 0
   const val AWB_MODE_AUTO = 1
 
+  /** CameraMetadata COLOR_CORRECTION_MODE_TRANSFORM_MATRIX. */
+  const val COLOR_CORRECTION_MODE_TRANSFORM_MATRIX = 1
+
   /** Maps the plugin focus mode to a CameraMetadata CONTROL_AF_MODE_* value. */
   fun afModeFromFocusMode(mode: String?): Int = when (mode) {
     "auto" -> AF_MODE_AUTO
