@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-set-exposure-compensation"
+description = "Enables the set_exposure_compensation command without any pre-configured scope."
+commands.allow = ["set_exposure_compensation"]
+
+[[permission]]
+identifier = "deny-set-exposure-compensation"
+description = "Denies the set_exposure_compensation command without any pre-configured scope."
+commands.deny = ["set_exposure_compensation"]

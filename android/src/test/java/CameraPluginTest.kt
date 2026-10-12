@@ -118,4 +118,78 @@ class CameraPluginTest {
     assertEquals(24f, CameraMath.toEquivalentFocalLength(4.8f, 7.2f)!!, 1e-4f)
     assertEquals(null, CameraMath.toEquivalentFocalLength(4.8f, 0f))
   }
+
+  @Test
+  fun resolveCameraIdReturnsRequestedWhenPresent() {
+    assertEquals("1", CameraMath.resolveCameraId(listOf("0", "1"), "1"))
+    assertEquals(null, CameraMath.resolveCameraId(listOf("0"), null))
+  }
+
+  @Test(expected = IllegalArgumentException::class)
+  fun resolveCameraIdThrowsWhenMissing() {
+    CameraMath.resolveCameraId(listOf("0"), "9")
+  }
+
+  @Test
+  fun afModeFromFocusModeMaps() {
+    assertEquals(CameraMath.AF_MODE_AUTO, CameraMath.afModeFromFocusMode("auto"))
+    assertEquals(CameraMath.AF_MODE_CONTINUOUS_PICTURE, CameraMath.afModeFromFocusMode("continuous"))
+    assertEquals(CameraMath.AF_MODE_OFF, CameraMath.afModeFromFocusMode("locked"))
+  }
+
+  @Test
+  fun awbModeFromStringMaps() {
+    assertEquals(CameraMath.AWB_MODE_AUTO, CameraMath.awbModeFromString("auto"))
+    assertEquals(CameraMath.AWB_MODE_OFF, CameraMath.awbModeFromString("locked"))
+  }
+
+  @Test
+  fun evToCompensationIndexClamps() {
+    assertEquals(0, CameraMath.evToCompensationIndex(0.0, 1.0 / 3, -12, 12))
+    assertEquals(3, CameraMath.evToCompensationIndex(1.0, 1.0 / 3, -12, 12))
+    assertEquals(12, CameraMath.evToCompensationIndex(100.0, 1.0 / 3, -12, 12))
+    assertEquals(-12, CameraMath.evToCompensationIndex(-100.0, 1.0 / 3, -12, 12))
+    assertEquals(0, CameraMath.evToCompensationIndex(1.0, 0.0, -12, 12))
+  }
+
+  @Test
+  fun awbGainsFromKelvinNormalizeGreenAndStayPositive() {
+    val gains = CameraMath.awbGainsFromKelvin(5000)
+    assertEquals(1f, gains[1], 1e-6f)
+    assertEquals(1f, gains[2], 1e-6f)
+    assertTrue(gains[0] > 0f)
+    assertTrue(gains[3] > 0f)
+    assertTrue(CameraMath.awbGainsFromKelvin(99999)[0] > 0f)
+  }
+
+  @Test
+  fun supportsManualAwbDetectsOffMode() {
+    assertTrue(CameraMath.supportsManualAwb(intArrayOf(CameraMath.AWB_MODE_OFF, CameraMath.AWB_MODE_AUTO)))
+    assertFalse(CameraMath.supportsManualAwb(intArrayOf(CameraMath.AWB_MODE_AUTO)))
+    assertFalse(CameraMath.supportsManualAwb(null))
+  }
+
+  @Test
+  fun parseAspectRatioParsesAndRejectsInvalid() {
+    assertEquals(Pair(4, 3), CameraMath.parseAspectRatio("4:3"))
+    assertEquals(Pair(16, 9), CameraMath.parseAspectRatio("16:9"))
+    assertEquals(null, CameraMath.parseAspectRatio("auto"))
+    assertEquals(null, CameraMath.parseAspectRatio(null))
+  }
+
+  @Test
+  fun videoQualityNameNormalizes() {
+    assertEquals("sd", CameraMath.videoQualityName("sd"))
+    assertEquals("fhd", CameraMath.videoQualityName("fhd"))
+    assertEquals("hd", CameraMath.videoQualityName("weird"))
+    assertEquals("hd", CameraMath.videoQualityName(null))
+  }
+
+  @Test
+  fun gcdReducesAspectRatios() {
+    assertEquals(120, CameraMath.gcd(1920, 1080))
+    assertEquals(160, CameraMath.gcd(640, 480))
+    assertEquals(1, CameraMath.gcd(3, 2))
+    assertEquals(1, CameraMath.gcd(0, 0))
+  }
 }

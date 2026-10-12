@@ -8,11 +8,21 @@ import WebKit
 
 struct StartPreviewOptions: Decodable {
   var camera: String?
+  var cameraId: String?
   var windowed: Bool?
+}
+
+struct Resolution: Decodable {
+  var width: Int?
+  var height: Int?
 }
 
 struct CaptureOptions: Decodable {
   var flash: String?
+  var resolution: Resolution?
+  var aspectRatio: String?
+  var format: String?
+  var quality: Double?
 }
 
 struct FlashOptions: Decodable {
@@ -30,6 +40,9 @@ struct SaveToGalleryOptions: Decodable {
 
 struct StartRecordingOptions: Decodable {
   var onProgress: Channel?
+  var quality: String?
+  var fps: Double?
+  var bitrate: Double?
 }
 
 struct StopRecordingOptions: Decodable {
@@ -38,6 +51,32 @@ struct StopRecordingOptions: Decodable {
 
 struct GetCapabilitiesOptions: Decodable {
   var cameraId: String?
+}
+
+struct TorchOptions: Decodable {
+  var on: Bool?
+}
+
+struct FocusPointOptions: Decodable {
+  var x: Double?
+  var y: Double?
+}
+
+struct FocusModeOptions: Decodable {
+  var mode: String?
+}
+
+struct ExposureOptions: Decodable {
+  var ev: Double?
+}
+
+struct ExposureModeOptions: Decodable {
+  var mode: String?
+}
+
+struct WhiteBalanceOptions: Decodable {
+  var mode: String?
+  var temperatureK: Int?
 }
 
 /// Encodable payload for a camera entry returned by `getAvailableCameras`.
@@ -112,6 +151,34 @@ func makeRecordingProgress(duration: Double, bytesRecorded: Int64) -> RecordingP
 enum CaptureError: Error {
   case cameraUnavailable
   case couldNotConfigureInput
+  case cameraIdUnavailable(String)
+}
+
+/// Returns the requested camera id if present among the available ids; nil when no
+/// id was requested; throws when the id is not available.
+func resolveCameraId(availableIds: [String], requested: String?) throws -> String? {
+  guard let requested = requested else { return nil }
+  if availableIds.contains(requested) { return requested }
+  throw CaptureError.cameraIdUnavailable(requested)
+}
+
+/// Clamps an exposure bias to the supported range.
+func clampExposureBias(_ ev: Float, minBias: Float, maxBias: Float) -> Float {
+  min(max(ev, minBias), maxBias)
+}
+
+/// Clamps a white balance channel gain to `[1, maxGain]`.
+func clampWhiteBalanceGain(_ gain: Float, maxGain: Float) -> Float {
+  min(max(gain, 1.0), maxGain)
+}
+
+/// Maps a plugin focus mode name to an `AVCaptureDevice.FocusMode`.
+func focusMode(fromName name: String?) -> AVCaptureDevice.FocusMode {
+  switch name {
+  case "auto": return .autoFocus
+  case "continuous": return .continuousAutoFocus
+  default: return .locked
+  }
 }
 
 class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRecordingDelegate {
@@ -159,7 +226,7 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
     return discoverySession.devices
   }
 
-  private func setupSession(direction: String, windowed: Bool) throws {
+  private func setupSession(direction: String, cameraId: String?, windowed: Bool) throws {
     if windowed {
       webView.superview?.insertSubview(cameraView, belowSubview: webView)
     } else {
@@ -171,11 +238,20 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
       else if device.position == .front { frontCamera = device }
     }
 
-    var selected = direction
-    if selected == "back" && backCamera == nil { selected = "front" }
-    if selected == "front" && frontCamera == nil { selected = "back" }
-
-    guard let cameraDevice = selected == "front" ? frontCamera : backCamera else {
+    let cameraDevice: AVCaptureDevice?
+    let availableIds = availableLenses().map { $0.uniqueID }
+    if let resolvedId = try resolveCameraId(availableIds: availableIds, requested: cameraId) {
+      cameraDevice = AVCaptureDevice(uniqueID: resolvedId)
+      if cameraDevice == nil {
+        throw CaptureError.cameraIdUnavailable(resolvedId)
+      }
+    } else {
+      var selected = direction
+      if selected == "back" && backCamera == nil { selected = "front" }
+      if selected == "front" && frontCamera == nil { selected = "back" }
+      cameraDevice = selected == "front" ? frontCamera : backCamera
+    }
+    guard let cameraDevice = cameraDevice else {
       throw CaptureError.cameraUnavailable
     }
     currentCamera = cameraDevice
@@ -213,6 +289,15 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
     let previewLayer = AVCaptureVideoPreviewLayer(session: session)
     cameraView.addPreviewLayer(previewLayer)
     self.captureVideoPreviewLayer = previewLayer
+    if let connection = previewLayer.connection {
+      if connection.isVideoOrientationSupported {
+        connection.videoOrientation = .portrait
+      }
+      if cameraDevice.position == .front && connection.isVideoMirroringSupported {
+        connection.automaticallyAdjustsVideoMirroring = false
+        connection.isVideoMirrored = true
+      }
+    }
     self.captureSession = session
 
     self.windowed = windowed
@@ -267,8 +352,7 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
   @objc private func startPreview(_ invoke: Invoke) throws {
     let args = try invoke.parseArgs(StartPreviewOptions.self)
 
-    let availableDevices = discoverCaptureDevices()
-    if availableDevices.isEmpty {
+    if availableLenses().isEmpty {
       invoke.reject("No camera available on this device (e.g., iOS Simulator)")
       return
     }
@@ -282,7 +366,8 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
       self.loadCamera()
       self.dismantleCamera()
       do {
-        try self.setupSession(direction: args.camera ?? "back", windowed: args.windowed ?? false)
+        try self.setupSession(
+          direction: args.camera ?? "back", cameraId: args.cameraId, windowed: args.windowed ?? false)
         self.captureSession?.startRunning()
         invoke.resolve()
       } catch {
@@ -308,7 +393,23 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
       return
     }
 
-    let settings = AVCapturePhotoSettings()
+    if let format = args.format, format != "jpeg", format != "heif" {
+      invoke.reject("Format \(format) is not supported on iOS.")
+      return
+    }
+
+    if #available(iOS 16.0, *), let resolution = args.resolution,
+      let width = resolution.width, let height = resolution.height, width > 0, height > 0
+    {
+      photoOutput.maxPhotoDimensions = CMVideoDimensions(width: Int32(width), height: Int32(height))
+    }
+
+    let settings: AVCapturePhotoSettings
+    if args.format == "heif", photoOutput.availablePhotoCodecTypes.contains(.hevc) {
+      settings = AVCapturePhotoSettings(format: [AVVideoCodecKey: AVVideoCodecType.hevc])
+    } else {
+      settings = AVCapturePhotoSettings()
+    }
     if let flash = args.flash {
       switch flash {
       case "on": settings.flashMode = .on
@@ -376,7 +477,7 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
     DispatchQueue.main.async { [self] in
       self.dismantleCamera()
       do {
-        try self.setupSession(direction: newDirection, windowed: self.windowed)
+        try self.setupSession(direction: newDirection, cameraId: nil, windowed: self.windowed)
         self.captureSession?.startRunning()
         invoke.resolve()
       } catch {
@@ -418,6 +519,144 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
       return
     }
     invoke.resolve(Double(device.videoZoomFactor))
+  }
+
+  // MARK: Fine controls
+
+  @objc private func setTorch(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(TorchOptions.self)
+    guard let device = currentCamera else {
+      invoke.reject("Camera preview is not active. Call startPreview() first.")
+      return
+    }
+    guard device.hasTorch else {
+      invoke.reject("Torch is not available on this camera.")
+      return
+    }
+    do {
+      try device.lockForConfiguration()
+      device.torchMode = (args.on ?? false) ? .on : .off
+      device.unlockForConfiguration()
+      invoke.resolve()
+    } catch {
+      invoke.reject("Failed to set torch: \(error.localizedDescription)")
+    }
+  }
+
+  @objc private func setFocusPoint(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(FocusPointOptions.self)
+    guard let device = currentCamera else {
+      invoke.reject("Camera preview is not active. Call startPreview() first.")
+      return
+    }
+    guard device.isFocusPointOfInterestSupported else {
+      invoke.reject("Focus point is not supported on this camera.")
+      return
+    }
+    let x = min(max(args.x ?? 0.5, 0.0), 1.0)
+    let y = min(max(args.y ?? 0.5, 0.0), 1.0)
+    do {
+      try device.lockForConfiguration()
+      device.focusPointOfInterest = CGPoint(x: x, y: y)
+      if device.isFocusModeSupported(.autoFocus) {
+        device.focusMode = .autoFocus
+      }
+      device.unlockForConfiguration()
+      invoke.resolve()
+    } catch {
+      invoke.reject("Failed to set focus point: \(error.localizedDescription)")
+    }
+  }
+
+  @objc private func setFocusMode(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(FocusModeOptions.self)
+    guard let device = currentCamera else {
+      invoke.reject("Camera preview is not active. Call startPreview() first.")
+      return
+    }
+    let mode = focusMode(fromName: args.mode)
+    guard device.isFocusModeSupported(mode) else {
+      invoke.reject("Focus mode \(args.mode ?? "locked") is not supported on this camera.")
+      return
+    }
+    do {
+      try device.lockForConfiguration()
+      device.focusMode = mode
+      device.unlockForConfiguration()
+      invoke.resolve()
+    } catch {
+      invoke.reject("Failed to set focus mode: \(error.localizedDescription)")
+    }
+  }
+
+  @objc private func setExposureCompensation(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(ExposureOptions.self)
+    guard let device = currentCamera else {
+      invoke.reject("Camera preview is not active. Call startPreview() first.")
+      return
+    }
+    let bias = clampExposureBias(
+      Float(args.ev ?? 0.0), minBias: device.minExposureTargetBias,
+      maxBias: device.maxExposureTargetBias)
+    do {
+      try device.lockForConfiguration()
+      device.setExposureTargetBias(bias)
+      device.unlockForConfiguration()
+      invoke.resolve()
+    } catch {
+      invoke.reject("Failed to set exposure: \(error.localizedDescription)")
+    }
+  }
+
+  @objc private func setExposureMode(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(ExposureModeOptions.self)
+    guard let device = currentCamera else {
+      invoke.reject("Camera preview is not active. Call startPreview() first.")
+      return
+    }
+    let mode: AVCaptureDevice.ExposureMode = (args.mode == "locked") ? .locked : .continuousAutoExposure
+    guard device.isExposureModeSupported(mode) else {
+      invoke.reject("Exposure mode \(args.mode ?? "auto") is not supported on this camera.")
+      return
+    }
+    do {
+      try device.lockForConfiguration()
+      device.exposureMode = mode
+      device.unlockForConfiguration()
+      invoke.resolve()
+    } catch {
+      invoke.reject("Failed to set exposure mode: \(error.localizedDescription)")
+    }
+  }
+
+  @objc private func setWhiteBalance(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(WhiteBalanceOptions.self)
+    guard let device = currentCamera else {
+      invoke.reject("Camera preview is not active. Call startPreview() first.")
+      return
+    }
+    do {
+      try device.lockForConfiguration()
+      if args.mode == "locked" {
+        var gains = device.deviceWhiteBalanceGains
+        if let kelvin = args.temperatureK {
+          let values = AVCaptureDevice.WhiteBalanceTemperatureAndTintValues(
+            temperature: Float(kelvin), tint: 0)
+          gains = device.deviceWhiteBalanceGains(for: values)
+        }
+        let maxGain = device.maxWhiteBalanceGain
+        gains.redGain = clampWhiteBalanceGain(gains.redGain, maxGain: maxGain)
+        gains.greenGain = clampWhiteBalanceGain(gains.greenGain, maxGain: maxGain)
+        gains.blueGain = clampWhiteBalanceGain(gains.blueGain, maxGain: maxGain)
+        device.setWhiteBalanceModeLocked(with: gains)
+      } else {
+        device.whiteBalanceMode = .continuousAutoWhiteBalance
+      }
+      device.unlockForConfiguration()
+      invoke.resolve()
+    } catch {
+      invoke.reject("Failed to set white balance: \(error.localizedDescription)")
+    }
   }
 
   // MARK: Introspection
@@ -492,6 +731,25 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
     if !modes.isEmpty {
       result["focusModes"] = modes
     }
+    result["exposureRange"] = [
+      "minEv": Double(camera.minExposureTargetBias),
+      "maxEv": Double(camera.maxExposureTargetBias),
+    ]
+    result["exposureModes"] = ["auto", "locked"]
+    result["whiteBalanceModes"] = ["auto", "locked"]
+    result["supportsWhiteBalanceTemperature"] = camera.isWhiteBalanceModeSupported(.locked)
+    if #available(iOS 16.0, *) {
+      result["photoResolutions"] = camera.activeFormat.supportedMaxPhotoDimensions.map {
+        ["width": Int($0.width), "height": Int($0.height)]
+      }
+    }
+    result["photoAspects"] = ["4:3", "16:9"]
+    result["videoQualities"] = ["sd", "hd", "fhd", "uhd"]
+    if let range = camera.activeFormat.videoSupportedFrameRateRanges.first {
+      result["videoFps"] = [Int(range.minFrameRate), Int(range.maxFrameRate)]
+    } else {
+      result["videoFps"] = [30]
+    }
     invoke.resolve(result)
   }
 
@@ -533,6 +791,8 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
       return
     }
 
+    applyVideoQuality(args?.quality, fps: args?.fps)
+
     let fileURL = FileManager.default.temporaryDirectory
       .appendingPathComponent("tauri-camera-\(Int(Date().timeIntervalSince1970 * 1000)).mp4")
 
@@ -543,6 +803,38 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
       startProgressTimer()
     }
     invoke.resolve()
+  }
+
+  private func applyVideoQuality(_ quality: String?, fps: Double?) {
+    guard let session = captureSession, let device = currentCamera else { return }
+    session.beginConfiguration()
+    if let quality = quality, let preset = sessionPreset(forQuality: quality),
+      session.canSetSessionPreset(preset)
+    {
+      session.sessionPreset = preset
+    }
+    session.commitConfiguration()
+    if let fps = fps, fps > 0 {
+      do {
+        try device.lockForConfiguration()
+        let duration = CMTime(value: 1, timescale: CMTimeScale(fps))
+        device.activeVideoMinFrameDuration = duration
+        device.activeVideoMaxFrameDuration = duration
+        device.unlockForConfiguration()
+      } catch {
+        // best-effort; keep the default frame rate
+      }
+    }
+  }
+
+  private func sessionPreset(forQuality quality: String) -> AVCaptureSession.Preset? {
+    switch quality {
+    case "sd": return AVCaptureSession.Preset.vga640x480
+    case "hd": return AVCaptureSession.Preset.hd1280x720
+    case "fhd": return AVCaptureSession.Preset.hd1920x1080
+    case "uhd": return AVCaptureSession.Preset.hd4K3840x2160
+    default: return nil
+    }
   }
 
   @objc private func stopRecording(_ invoke: Invoke) {

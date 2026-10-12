@@ -19,13 +19,40 @@ pub enum FlashMode {
 #[serde(rename_all = "camelCase")]
 pub struct StartPreviewOptions {
   pub camera: Option<CameraDirection>,
+  pub camera_id: Option<String>,
   pub windowed: Option<bool>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Resolution {
+  pub width: u32,
+  pub height: u32,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CaptureOptions {
   pub flash: Option<FlashMode>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub resolution: Option<Resolution>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub aspect_ratio: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub format: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub quality: Option<f64>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartRecordingOptions {
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub quality: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub fps: Option<u32>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub bitrate: Option<u64>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -38,6 +65,76 @@ pub struct FlashOptions {
 #[serde(rename_all = "camelCase")]
 pub struct ZoomOptions {
   pub factor: f64,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TorchOptions {
+  pub on: bool,
+}
+
+/// Normalized focus point (0..1, top-left origin).
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FocusPointOptions {
+  pub x: f64,
+  pub y: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FocusMode {
+  Auto,
+  Continuous,
+  Locked,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FocusModeOptions {
+  pub mode: FocusMode,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExposureOptions {
+  pub ev: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ExposureMode {
+  Auto,
+  Locked,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExposureModeOptions {
+  pub mode: ExposureMode,
+}
+
+/// Supported exposure compensation range (EV).
+#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExposureRange {
+  pub min_ev: f64,
+  pub max_ev: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum WhiteBalanceMode {
+  Auto,
+  Locked,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WhiteBalanceOptions {
+  pub mode: WhiteBalanceMode,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub temperature_k: Option<u32>,
 }
 
 /// Result of a photo capture.
@@ -115,6 +212,22 @@ pub struct CameraCapabilities {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub focus_modes: Option<Vec<String>>,
   #[serde(skip_serializing_if = "Option::is_none")]
+  pub exposure_range: Option<ExposureRange>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub exposure_modes: Option<Vec<ExposureMode>>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub white_balance_modes: Option<Vec<WhiteBalanceMode>>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub supports_white_balance_temperature: Option<bool>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub photo_resolutions: Option<Vec<Resolution>>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub photo_aspects: Option<Vec<String>>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub video_qualities: Option<Vec<String>>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub video_fps: Option<Vec<u32>>,
+  #[serde(skip_serializing_if = "Option::is_none")]
   pub photo_formats: Option<Vec<String>>,
   pub supports_pause: bool,
 }
@@ -143,7 +256,16 @@ mod tests {
     let opts: StartPreviewOptions =
       serde_json::from_str(r#"{"camera":"front","windowed":true}"#).unwrap();
     assert_eq!(opts.camera, Some(CameraDirection::Front));
+    assert_eq!(opts.camera_id, None);
     assert_eq!(opts.windowed, Some(true));
+  }
+
+  #[test]
+  fn deserializes_start_preview_camera_id() {
+    let opts: StartPreviewOptions =
+      serde_json::from_str(r#"{"cameraId":"lens-2","camera":"back"}"#).unwrap();
+    assert_eq!(opts.camera_id.as_deref(), Some("lens-2"));
+    assert_eq!(opts.camera, Some(CameraDirection::Back));
   }
 
   #[test]
@@ -156,6 +278,54 @@ mod tests {
       serde_json::to_string(&CameraDirection::Back).unwrap(),
       r#""back""#
     );
+  }
+
+  #[test]
+  fn deserializes_focus_point_options() {
+    let opts: FocusPointOptions = serde_json::from_str(r#"{"x":0.5,"y":0.25}"#).unwrap();
+    assert_eq!(opts.x, 0.5);
+    assert_eq!(opts.y, 0.25);
+  }
+
+  #[test]
+  fn serializes_control_modes_lowercase() {
+    assert_eq!(
+      serde_json::to_string(&FocusMode::Continuous).unwrap(),
+      r#""continuous""#
+    );
+    assert_eq!(
+      serde_json::to_string(&ExposureMode::Locked).unwrap(),
+      r#""locked""#
+    );
+    assert_eq!(
+      serde_json::to_string(&WhiteBalanceMode::Auto).unwrap(),
+      r#""auto""#
+    );
+  }
+
+  #[test]
+  fn deserializes_white_balance_options_with_temperature() {
+    let opts: WhiteBalanceOptions =
+      serde_json::from_str(r#"{"mode":"locked","temperatureK":5000}"#).unwrap();
+    assert_eq!(opts.mode, WhiteBalanceMode::Locked);
+    assert_eq!(opts.temperature_k, Some(5000));
+  }
+
+  #[test]
+  fn serializes_capabilities_with_exposure_and_white_balance() {
+    let caps = CameraCapabilities {
+      exposure_range: Some(ExposureRange {
+        min_ev: -2.0,
+        max_ev: 2.0,
+      }),
+      exposure_modes: Some(vec![ExposureMode::Auto, ExposureMode::Locked]),
+      white_balance_modes: Some(vec![WhiteBalanceMode::Auto, WhiteBalanceMode::Locked]),
+      ..Default::default()
+    };
+    let json = serde_json::to_string(&caps).unwrap();
+    assert!(json.contains(r#""exposureRange":{"minEv":-2.0,"maxEv":2.0}"#));
+    assert!(json.contains(r#""exposureModes":["auto","locked"]"#));
+    assert!(json.contains(r#""whiteBalanceModes":["auto","locked"]"#));
   }
 
   #[test]
@@ -234,6 +404,14 @@ mod tests {
       zoom_range: Some(ZoomRange { min: 1.0, max: 8.0 }),
       supports_focus: false,
       focus_modes: None,
+      exposure_range: None,
+      exposure_modes: None,
+      white_balance_modes: None,
+      supports_white_balance_temperature: None,
+      photo_resolutions: None,
+      photo_aspects: None,
+      video_qualities: None,
+      video_fps: None,
       photo_formats: None,
       supports_pause: false,
     };
@@ -275,5 +453,47 @@ mod tests {
     assert_eq!(progress.duration, 2.0);
     assert_eq!(progress.bytes_recorded, Some(1024));
     assert_eq!(progress.bitrate, Some(4096.0));
+  }
+
+  #[test]
+  fn deserializes_capture_options_with_config() {
+    let opts: CaptureOptions = serde_json::from_str(
+      r#"{"flash":"auto","resolution":{"width":1920,"height":1080},"aspectRatio":"16:9","format":"png","quality":0.8}"#,
+    )
+    .unwrap();
+    assert_eq!(opts.flash, Some(FlashMode::Auto));
+    assert_eq!(opts.resolution.as_ref().map(|r| r.width), Some(1920));
+    assert_eq!(opts.resolution.as_ref().map(|r| r.height), Some(1080));
+    assert_eq!(opts.aspect_ratio.as_deref(), Some("16:9"));
+    assert_eq!(opts.format.as_deref(), Some("png"));
+    assert_eq!(opts.quality, Some(0.8));
+  }
+
+  #[test]
+  fn deserializes_start_recording_options() {
+    let opts: StartRecordingOptions =
+      serde_json::from_str(r#"{"quality":"fhd","fps":30,"bitrate":2000000}"#).unwrap();
+    assert_eq!(opts.quality.as_deref(), Some("fhd"));
+    assert_eq!(opts.fps, Some(30));
+    assert_eq!(opts.bitrate, Some(2_000_000));
+  }
+
+  #[test]
+  fn serializes_capabilities_with_photo_and_video() {
+    let caps = CameraCapabilities {
+      photo_resolutions: Some(vec![Resolution {
+        width: 1920,
+        height: 1080,
+      }]),
+      photo_aspects: Some(vec!["16:9".into()]),
+      video_qualities: Some(vec!["hd".into(), "fhd".into()]),
+      video_fps: Some(vec![30, 60]),
+      ..Default::default()
+    };
+    let json = serde_json::to_string(&caps).unwrap();
+    assert!(json.contains(r#""photoResolutions":[{"width":1920,"height":1080}]"#));
+    assert!(json.contains(r#""photoAspects":["16:9"]"#));
+    assert!(json.contains(r#""videoQualities":["hd","fhd"]"#));
+    assert!(json.contains(r#""videoFps":[30,60]"#));
   }
 }

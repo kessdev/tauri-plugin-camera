@@ -106,4 +106,29 @@ final class CameraPluginTests: XCTestCase {
       ["auto", "continuous"]
     )
   }
+
+  func testResolveCameraId() throws {
+    XCTAssertNil(try resolveCameraId(availableIds: ["a"], requested: nil))
+    XCTAssertEqual(try resolveCameraId(availableIds: ["a", "b"], requested: "b"), "b")
+    XCTAssertThrowsError(try resolveCameraId(availableIds: ["a"], requested: "z"))
+  }
+
+  func testClampExposureBias() {
+    XCTAssertEqual(clampExposureBias(5, minBias: -2, maxBias: 2), 2)
+    XCTAssertEqual(clampExposureBias(-5, minBias: -2, maxBias: 2), -2)
+    XCTAssertEqual(clampExposureBias(1, minBias: -2, maxBias: 2), 1)
+  }
+
+  func testClampWhiteBalanceGain() {
+    XCTAssertEqual(clampWhiteBalanceGain(0.5, maxGain: 4), 1)
+    XCTAssertEqual(clampWhiteBalanceGain(9, maxGain: 4), 4)
+    XCTAssertEqual(clampWhiteBalanceGain(2, maxGain: 4), 2)
+  }
+
+  func testFocusModeFromName() {
+    XCTAssertEqual(focusMode(fromName: "auto"), .autoFocus)
+    XCTAssertEqual(focusMode(fromName: "continuous"), .continuousAutoFocus)
+    XCTAssertEqual(focusMode(fromName: "locked"), .locked)
+    XCTAssertEqual(focusMode(fromName: nil), .locked)
+  }
 }

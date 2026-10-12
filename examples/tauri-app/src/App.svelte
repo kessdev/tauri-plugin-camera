@@ -12,6 +12,12 @@
     getPreviewStream,
     getAvailableCameras,
     getCapabilities,
+    setTorch,
+    setFocusPoint,
+    setFocusMode,
+    setExposureCompensation,
+    setExposureMode,
+    setWhiteBalance,
     convertFileSrc
   } from 'tauri-plugin-camera-kessdev'
 
@@ -50,7 +56,7 @@
 
   async function _capture() {
     try {
-      const photo = await capture()
+      const photo = await capture({ resolution: { width: 1280, height: 720 }, quality: 0.9 })
       updateLog(photo)
       if (photo.path) {
         photoSrc = convertFileSrc(photo.path)
@@ -63,7 +69,7 @@
   async function _toggleRecording() {
     try {
       if (!recording) {
-        await startRecording()
+        await startRecording({ quality: 'hd', fps: 30 })
         recording = true
         updateLog('recording started')
       } else {
@@ -85,12 +91,30 @@
       updateLog(cameras)
       if (cameras.length > 0) {
         updateLog(await getCapabilities(cameras[0].id))
+        await startPreview({ cameraId: cameras[0].id, windowed: true })
+        updateLog(`preview started with cameraId=${cameras[0].id}`)
+        if (!isMobile()) {
+          const stream = await getPreviewStream()
+          if (stream && videoEl) videoEl.srcObject = stream
+        }
       }
     } catch (e) { updateLog(e) }
   }
 
   async function _check() {
     try { updateLog(await checkPermissions()) } catch (e) { updateLog(e) }
+  }
+
+  async function _controls() {
+    try {
+      await setTorch(true)
+      await setFocusPoint(0.5, 0.5)
+      await setFocusMode('continuous')
+      await setExposureCompensation(1)
+      await setExposureMode('auto')
+      await setWhiteBalance({ mode: 'locked', temperatureK: 5000 })
+      updateLog('torch/focus/exposure/wb applied')
+    } catch (e) { updateLog(e) }
   }
 
   async function _request() {
@@ -118,7 +142,8 @@
   <div class="row">
     <button onclick={_check}>Check Permissions</button>
     <button onclick={_request}>Request Permissions</button>
-    <button onclick={_cameras}>Cameras &amp; Capabilities</button>
+    <button onclick={_cameras}>Cameras &amp; Start Lens</button>
+    <button onclick={_controls}>Torch/Focus/Exp/WB</button>
   </div>
 
   {#if photoSrc}
