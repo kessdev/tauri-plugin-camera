@@ -187,7 +187,8 @@ class CameraPluginTest {
 
   @Test
   fun gcdReducesAspectRatios() {
-    assertEquals(4, CameraMath.gcd(1920, 1080))
+    assertEquals(120, CameraMath.gcd(1920, 1080))
+    assertEquals(160, CameraMath.gcd(640, 480))
     assertEquals(1, CameraMath.gcd(3, 2))
     assertEquals(1, CameraMath.gcd(0, 0))
   }
