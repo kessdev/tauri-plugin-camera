@@ -137,6 +137,33 @@ internal object CameraMath {
   fun supportsManualAwb(availableModes: IntArray?): Boolean =
     availableModes != null && availableModes.contains(AWB_MODE_OFF)
 
+  /** Parses an aspect ratio like "4:3" into a (width, height) pair, or null. */
+  fun parseAspectRatio(value: String?): Pair<Int, Int>? {
+    val parts = value?.split(":") ?: return null
+    if (parts.size != 2) return null
+    val w = parts[0].trim().toIntOrNull() ?: return null
+    val h = parts[1].trim().toIntOrNull() ?: return null
+    return if (w > 0 && h > 0) Pair(w, h) else null
+  }
+
+  /** Normalizes a video quality name; unknown values default to "hd". */
+  fun videoQualityName(value: String?): String = when (value) {
+    "sd", "hd", "fhd", "uhd" -> value
+    else -> "hd"
+  }
+
+  /** Greatest common divisor, used to reduce an aspect ratio. */
+  fun gcd(a: Int, b: Int): Int {
+    var x = kotlin.math.abs(a)
+    var y = kotlin.math.abs(b)
+    while (y != 0) {
+      val t = y
+      y = x % y
+      x = t
+    }
+    return if (x == 0) 1 else x
+  }
+
   private val VIDEO_EXTENSIONS = setOf("mp4", "mov", "m4v", "webm", "3gp", "mkv")
 
   /** Infers the media kind ("image" | "video") from the path, honoring an override. */

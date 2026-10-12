@@ -56,7 +56,7 @@
 
   async function _capture() {
     try {
-      const photo = await capture()
+      const photo = await capture({ resolution: { width: 1280, height: 720 }, quality: 0.9 })
       updateLog(photo)
       if (photo.path) {
         photoSrc = convertFileSrc(photo.path)
@@ -69,7 +69,7 @@
   async function _toggleRecording() {
     try {
       if (!recording) {
-        await startRecording()
+        await startRecording({ quality: 'hd', fps: 30 })
         recording = true
         updateLog('recording started')
       } else {

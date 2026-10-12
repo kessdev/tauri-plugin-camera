@@ -12,8 +12,17 @@ struct StartPreviewOptions: Decodable {
   var windowed: Bool?
 }
 
+struct Resolution: Decodable {
+  var width: Int?
+  var height: Int?
+}
+
 struct CaptureOptions: Decodable {
   var flash: String?
+  var resolution: Resolution?
+  var aspectRatio: String?
+  var format: String?
+  var quality: Double?
 }
 
 struct FlashOptions: Decodable {
@@ -31,6 +40,9 @@ struct SaveToGalleryOptions: Decodable {
 
 struct StartRecordingOptions: Decodable {
   var onProgress: Channel?
+  var quality: String?
+  var fps: Double?
+  var bitrate: Double?
 }
 
 struct StopRecordingOptions: Decodable {
@@ -381,7 +393,23 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
       return
     }
 
-    let settings = AVCapturePhotoSettings()
+    if let format = args.format, format != "jpeg", format != "heif" {
+      invoke.reject("Format \(format) is not supported on iOS.")
+      return
+    }
+
+    if #available(iOS 16.0, *), let resolution = args.resolution,
+      let width = resolution.width, let height = resolution.height, width > 0, height > 0
+    {
+      photoOutput.maxPhotoDimensions = CMVideoDimensions(width: Int32(width), height: Int32(height))
+    }
+
+    let settings: AVCapturePhotoSettings
+    if args.format == "heif", photoOutput.availablePhotoCodecTypes.contains(.hevc) {
+      settings = AVCapturePhotoSettings(format: [AVVideoCodecKey: AVVideoCodecType.hevc])
+    } else {
+      settings = AVCapturePhotoSettings()
+    }
     if let flash = args.flash {
       switch flash {
       case "on": settings.flashMode = .on
@@ -710,6 +738,18 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
     result["exposureModes"] = ["auto", "locked"]
     result["whiteBalanceModes"] = ["auto", "locked"]
     result["supportsWhiteBalanceTemperature"] = camera.isWhiteBalanceModeSupported(.locked)
+    if #available(iOS 16.0, *) {
+      result["photoResolutions"] = camera.activeFormat.supportedMaxPhotoDimensions.map {
+        ["width": Int($0.width), "height": Int($0.height)]
+      }
+    }
+    result["photoAspects"] = ["4:3", "16:9"]
+    result["videoQualities"] = ["sd", "hd", "fhd", "uhd"]
+    if let range = camera.activeFormat.videoSupportedFrameRateRanges.first {
+      result["videoFps"] = [Int(range.minFrameRate), Int(range.maxFrameRate)]
+    } else {
+      result["videoFps"] = [30]
+    }
     invoke.resolve(result)
   }
 
@@ -751,6 +791,8 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
       return
     }
 
+    applyVideoQuality(args?.quality, fps: args?.fps)
+
     let fileURL = FileManager.default.temporaryDirectory
       .appendingPathComponent("tauri-camera-\(Int(Date().timeIntervalSince1970 * 1000)).mp4")
 
@@ -761,6 +803,38 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
       startProgressTimer()
     }
     invoke.resolve()
+  }
+
+  private func applyVideoQuality(_ quality: String?, fps: Double?) {
+    guard let session = captureSession, let device = currentCamera else { return }
+    session.beginConfiguration()
+    if let quality = quality, let preset = sessionPreset(forQuality: quality),
+      session.canSetSessionPreset(preset)
+    {
+      session.sessionPreset = preset
+    }
+    session.commitConfiguration()
+    if let fps = fps, fps > 0 {
+      do {
+        try device.lockForConfiguration()
+        let duration = CMTime(value: 1, timescale: CMTimeScale(fps))
+        device.activeVideoMinFrameDuration = duration
+        device.activeVideoMaxFrameDuration = duration
+        device.unlockForConfiguration()
+      } catch {
+        // best-effort; keep the default frame rate
+      }
+    }
+  }
+
+  private func sessionPreset(forQuality quality: String) -> AVCaptureSession.Preset? {
+    switch quality {
+    case "sd": return .sd
+    case "hd": return .hd1280x720
+    case "fhd": return .hd1920x1080
+    case "uhd": return .hd4K3840x2160
+    default: return nil
+    }
   }
 
   @objc private func stopRecording(_ invoke: Invoke) {

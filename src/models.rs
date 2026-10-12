@@ -23,10 +23,36 @@ pub struct StartPreviewOptions {
   pub windowed: Option<bool>,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Resolution {
+  pub width: u32,
+  pub height: u32,
+}
+
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CaptureOptions {
   pub flash: Option<FlashMode>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub resolution: Option<Resolution>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub aspect_ratio: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub format: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub quality: Option<f64>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartRecordingOptions {
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub quality: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub fps: Option<u32>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub bitrate: Option<u64>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -193,6 +219,14 @@ pub struct CameraCapabilities {
   pub white_balance_modes: Option<Vec<WhiteBalanceMode>>,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub supports_white_balance_temperature: Option<bool>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub photo_resolutions: Option<Vec<Resolution>>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub photo_aspects: Option<Vec<String>>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub video_qualities: Option<Vec<String>>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub video_fps: Option<Vec<u32>>,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub photo_formats: Option<Vec<String>>,
   pub supports_pause: bool,
@@ -374,6 +408,10 @@ mod tests {
       exposure_modes: None,
       white_balance_modes: None,
       supports_white_balance_temperature: None,
+      photo_resolutions: None,
+      photo_aspects: None,
+      video_qualities: None,
+      video_fps: None,
       photo_formats: None,
       supports_pause: false,
     };
@@ -415,5 +453,47 @@ mod tests {
     assert_eq!(progress.duration, 2.0);
     assert_eq!(progress.bytes_recorded, Some(1024));
     assert_eq!(progress.bitrate, Some(4096.0));
+  }
+
+  #[test]
+  fn deserializes_capture_options_with_config() {
+    let opts: CaptureOptions = serde_json::from_str(
+      r#"{"flash":"auto","resolution":{"width":1920,"height":1080},"aspectRatio":"16:9","format":"png","quality":0.8}"#,
+    )
+    .unwrap();
+    assert_eq!(opts.flash, Some(FlashMode::Auto));
+    assert_eq!(opts.resolution.as_ref().map(|r| r.width), Some(1920));
+    assert_eq!(opts.resolution.as_ref().map(|r| r.height), Some(1080));
+    assert_eq!(opts.aspect_ratio.as_deref(), Some("16:9"));
+    assert_eq!(opts.format.as_deref(), Some("png"));
+    assert_eq!(opts.quality, Some(0.8));
+  }
+
+  #[test]
+  fn deserializes_start_recording_options() {
+    let opts: StartRecordingOptions =
+      serde_json::from_str(r#"{"quality":"fhd","fps":30,"bitrate":2000000}"#).unwrap();
+    assert_eq!(opts.quality.as_deref(), Some("fhd"));
+    assert_eq!(opts.fps, Some(30));
+    assert_eq!(opts.bitrate, Some(2_000_000));
+  }
+
+  #[test]
+  fn serializes_capabilities_with_photo_and_video() {
+    let caps = CameraCapabilities {
+      photo_resolutions: Some(vec![Resolution {
+        width: 1920,
+        height: 1080,
+      }]),
+      photo_aspects: Some(vec!["16:9".into()]),
+      video_qualities: Some(vec!["hd".into(), "fhd".into()]),
+      video_fps: Some(vec![30, 60]),
+      ..Default::default()
+    };
+    let json = serde_json::to_string(&caps).unwrap();
+    assert!(json.contains(r#""photoResolutions":[{"width":1920,"height":1080}]"#));
+    assert!(json.contains(r#""photoAspects":["16:9"]"#));
+    assert!(json.contains(r#""videoQualities":["hd","fhd"]"#));
+    assert!(json.contains(r#""videoFps":[30,60]"#));
   }
 }

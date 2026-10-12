@@ -9,9 +9,11 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.graphics.ImageFormat
 import android.graphics.drawable.Drawable
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.params.RggbChannelVector
+import android.hardware.camera2.params.StreamConfigurationMap
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
@@ -19,6 +21,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Base64
+import android.util.Size
 import android.view.Surface
 import android.view.ViewGroup
 import android.webkit.WebView
@@ -27,6 +30,7 @@ import androidx.camera.camera2.interop.Camera2CameraControl
 import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.camera2.interop.CaptureRequestOptions
 import androidx.camera.camera2.interop.ExperimentalCamera2Interop
+import androidx.camera.core.AspectRatio
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraInfo as CameraXInfo
 import androidx.camera.core.CameraSelector
@@ -73,8 +77,18 @@ class StartPreviewOptions {
 }
 
 @InvokeArg
+class ResolutionArg {
+  var width: Int = 0
+  var height: Int = 0
+}
+
+@InvokeArg
 class CaptureOptions {
   var flash: String? = null
+  var resolution: ResolutionArg? = null
+  var aspectRatio: String? = null
+  var format: String? = null
+  var quality: Double? = null
 }
 
 @InvokeArg
@@ -96,6 +110,9 @@ class SaveToGalleryOptions {
 @InvokeArg
 class StartRecordingOptions {
   var onProgress: Channel? = null
+  var quality: String? = null
+  var fps: Int? = null
+  var bitrate: Long? = null
 }
 
 @InvokeArg
@@ -167,6 +184,8 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
   private var executor: ExecutorService = Executors.newSingleThreadExecutor()
 
   private var currentLensFacing: Int = CameraSelector.LENS_FACING_BACK
+  private var currentSelector: CameraSelector? = null
+  private var currentVideoQuality: String = "hd"
   private var flashMode: Int = CameraMath.FLASH_OFF
   private var windowed = false
   private var webViewBackground: Drawable? = null
@@ -249,18 +268,34 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
     return CameraSelector.Builder().requireLensFacing(facing).build()
   }
 
-  private fun bindUseCases(provider: ProcessCameraProvider, cameraSelector: CameraSelector) {
+  private fun bindUseCases(
+    provider: ProcessCameraProvider,
+    cameraSelector: CameraSelector,
+    captureOptions: CaptureOptions? = null
+  ) {
     val preview = Preview.Builder().build()
     preview.setSurfaceProvider(previewView?.surfaceProvider)
 
-    val imageCapture = ImageCapture.Builder()
+    val imageBuilder = ImageCapture.Builder()
       .setFlashMode(flashMode)
       .setTargetRotation(previewView?.display?.rotation ?: Surface.ROTATION_0)
-      .build()
+    captureOptions?.resolution?.let { res ->
+      if (res.width > 0 && res.height > 0) {
+        @Suppress("DEPRECATION")
+        imageBuilder.setTargetResolution(Size(res.width, res.height))
+      }
+    }
+    captureOptions?.aspectRatio?.let { ratio ->
+      when (ratio) {
+        "4:3" -> imageBuilder.setTargetAspectRatio(AspectRatio.RATIO_4_3)
+        "16:9" -> imageBuilder.setTargetAspectRatio(AspectRatio.RATIO_16_9)
+      }
+    }
+    val imageCapture = imageBuilder.build()
     this.imageCapture = imageCapture
 
     val recorder = Recorder.Builder()
-      .setQualitySelector(QualitySelector.from(Quality.HD))
+      .setQualitySelector(QualitySelector.from(qualityOf(currentVideoQuality)))
       .build()
     val videoCapture = VideoCapture.withOutput(recorder)
     this.videoCapture = videoCapture
@@ -272,7 +307,15 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
       imageCapture,
       videoCapture
     )
+    currentSelector = cameraSelector
     currentLensFacing = camera?.cameraInfo?.lensFacing ?: currentLensFacing
+  }
+
+  private fun qualityOf(name: String?): Quality = when (name) {
+    "sd" -> Quality.SD
+    "fhd" -> Quality.FHD
+    "uhd" -> Quality.UHD
+    else -> Quality.HD
   }
 
   private fun dismantleCamera() {
@@ -332,6 +375,20 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
   @Command
   fun capture(invoke: Invoke) {
     val args = invoke.parseArgs(CaptureOptions::class.java)
+    if (args.format != null && args.format != "jpeg") {
+      invoke.reject("Format ${args.format} is not supported on Android.")
+      return
+    }
+    val provider = cameraProvider
+    val selector = currentSelector
+    if (provider != null && selector != null && (args.resolution != null || args.aspectRatio != null)) {
+      try {
+        bindUseCases(provider, selector, args)
+      } catch (e: Exception) {
+        invoke.reject(e.message ?: "Failed to configure capture")
+        return
+      }
+    }
     val imageCapture = imageCapture
     if (imageCapture == null) {
       invoke.reject("Camera preview is not active. Call startPreview() first.")
@@ -720,6 +777,36 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
       CameraMath.supportsManualAwb(characteristic(info, CameraCharacteristics.CONTROL_AWB_AVAILABLE_MODES))
     )
 
+    val streamConfig = characteristic(info, CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+    val sizes = streamConfig?.getOutputSizes(ImageFormat.JPEG)
+    if (sizes != null) {
+      val resolutions = JSArray()
+      val aspects = LinkedHashSet<String>()
+      for (size in sizes) {
+        val entry = JSObject()
+        entry.put("width", size.width)
+        entry.put("height", size.height)
+        resolutions.put(entry)
+        val g = CameraMath.gcd(size.width, size.height)
+        aspects.add("${size.width / g}:${size.height / g}")
+      }
+      obj.put("photoResolutions", resolutions)
+      val aspectArr = JSArray()
+      for (a in listOf("4:3", "16:9", "1:1")) {
+        if (aspects.contains(a)) aspectArr.put(a)
+      }
+      if (aspectArr.length() > 0) obj.put("photoAspects", aspectArr)
+    }
+    val qualities = JSArray()
+    qualities.put("sd")
+    qualities.put("hd")
+    qualities.put("fhd")
+    qualities.put("uhd")
+    obj.put("videoQualities", qualities)
+    val fpsArr = JSArray()
+    fpsArr.put(30)
+    obj.put("videoFps", fpsArr)
+
     val formats = JSArray()
     formats.put("jpeg")
     obj.put("photoFormats", formats)
@@ -787,6 +874,20 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
   @Command
   fun startRecording(invoke: Invoke) {
     val args = invoke.parseArgs(StartRecordingOptions::class.java)
+    val provider = cameraProvider
+    val selector = currentSelector
+    val requestedQuality = args.quality?.let { CameraMath.videoQualityName(it) }
+    if (provider != null && selector != null && requestedQuality != null &&
+      requestedQuality != currentVideoQuality
+    ) {
+      currentVideoQuality = requestedQuality
+      try {
+        bindUseCases(provider, selector)
+      } catch (e: Exception) {
+        invoke.reject(e.message ?: "Failed to configure recording")
+        return
+      }
+    }
     val videoCapture = videoCapture
     if (videoCapture == null) {
       invoke.reject("Camera preview is not active. Call startPreview() first.")

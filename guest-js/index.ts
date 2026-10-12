@@ -19,8 +19,25 @@ export interface StartPreviewOptions {
   windowed?: boolean
 }
 
+export type PhotoFormat = 'jpeg' | 'png' | 'heif'
+export type VideoQuality = 'sd' | 'hd' | 'fhd' | 'uhd'
+
+/** A width/height pair in pixels. */
+export interface Resolution {
+  width: number
+  height: number
+}
+
 export interface CaptureOptions {
   flash?: FlashMode
+  /** Target resolution (best-effort: the nearest supported is used). */
+  resolution?: Resolution
+  /** Target aspect ratio (e.g. '4:3', '16:9', '1:1'). */
+  aspectRatio?: string
+  /** Image format. Mobile supports `jpeg`; desktop `jpeg`/`png`. */
+  format?: PhotoFormat
+  /** Compression quality (0..1) for lossy formats. */
+  quality?: number
 }
 
 export interface Photo {
@@ -120,6 +137,10 @@ export interface CameraCapabilities {
   whiteBalanceModes?: WhiteBalanceMode[]
   /** Whether an arbitrary color temperature (Kelvin) can be applied. */
   supportsWhiteBalanceTemperature?: boolean
+  photoResolutions?: Resolution[]
+  photoAspects?: string[]
+  videoQualities?: VideoQuality[]
+  videoFps?: number[]
   photoFormats?: string[]
   supportsPause: boolean
 }
@@ -143,6 +164,12 @@ export interface RecordingProgress {
 export interface StartRecordingOptions {
   /** Receives live recording telemetry while the recording is active. */
   onProgress?: Channel<RecordingProgress>
+  /** Video quality preset. */
+  quality?: VideoQuality
+  /** Target frame rate. */
+  fps?: number
+  /** Target bitrate in bits per second. */
+  bitrate?: number
 }
 
 export interface StopRecordingOptions {
@@ -246,12 +273,56 @@ function teardownDesktopStream(): void {
   activeVideo = null
 }
 
-function captureDesktopFrame(): Photo {
+/** Parses an aspect ratio like '4:3' into a number (4/3), or null. */
+function parseAspectRatio(value: string): number | null {
+  const [w, h] = value.split(':').map((n) => Number(n))
+  if (!w || !h) return null
+  return w / h
+}
+
+/** Target capture height (px) for a video quality preset (desktop best-effort). */
+function qualityHeight(quality: VideoQuality): number {
+  switch (quality) {
+    case 'sd':
+      return 480
+    case 'hd':
+      return 720
+    case 'fhd':
+      return 1080
+    case 'uhd':
+      return 2160
+  }
+}
+
+/** MIME type for a photo format on desktop, or null when unsupported. */
+function desktopPhotoMime(format: PhotoFormat): string | null {
+  switch (format) {
+    case 'jpeg':
+      return 'image/jpeg'
+    case 'png':
+      return 'image/png'
+    default:
+      return null
+  }
+}
+
+function captureDesktopFrame(options?: CaptureOptions): Photo {
   if (!activeVideo) {
     throw new Error('Camera preview is not active. Call startPreview() first.')
   }
-  const width = activeVideo.videoWidth
-  const height = activeVideo.videoHeight
+  const format = options?.format ?? 'jpeg'
+  const mime = desktopPhotoMime(format)
+  if (!mime) {
+    throw new Error(`${format} is not supported on desktop.`)
+  }
+  const sourceWidth = activeVideo.videoWidth
+  const sourceHeight = activeVideo.videoHeight
+  let width = options?.resolution?.width ?? sourceWidth
+  let height = options?.resolution?.height ?? sourceHeight
+  if (!options?.resolution && options?.aspectRatio) {
+    const ratio = parseAspectRatio(options.aspectRatio)
+    if (ratio) height = Math.round(width / ratio)
+  }
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
@@ -260,13 +331,13 @@ function captureDesktopFrame(): Photo {
     throw new Error('Failed to create canvas context for capture.')
   }
   ctx.drawImage(activeVideo, 0, 0, width, height)
-  const dataUrl = canvas.toDataURL('image/jpeg')
+  const dataUrl = canvas.toDataURL(mime, options?.quality)
   return {
     dataUrl,
     width,
     height,
     orientation: 1,
-    format: 'jpeg',
+    format,
     thumbnail: dataUrl
   }
 }
@@ -325,7 +396,7 @@ export async function capture(options?: CaptureOptions): Promise<Photo> {
   if (isMobile()) {
     return await invoke<Photo>('plugin:camera-kessdev|capture', { ...options })
   }
-  return captureDesktopFrame()
+  return captureDesktopFrame(options)
 }
 
 // ---------------------------------------------------------------------------
@@ -535,7 +606,10 @@ export async function startRecording(options?: StartRecordingOptions): Promise<v
     activeVideo = null
   }
 
-  const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+  const videoConstraints: MediaTrackConstraints = {}
+  if (options?.quality) videoConstraints.height = { ideal: qualityHeight(options.quality) }
+  if (options?.fps) videoConstraints.frameRate = { ideal: options.fps }
+  const stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: true })
   activeStream = stream
 
   const video = document.createElement('video')
@@ -547,7 +621,9 @@ export async function startRecording(options?: StartRecordingOptions): Promise<v
 
   recordedChunks = []
   recordedBytes = 0
-  mediaRecorder = new MediaRecorder(stream)
+  const recorderOptions: MediaRecorderOptions = {}
+  if (options?.bitrate) recorderOptions.videoBitsPerSecond = options.bitrate
+  mediaRecorder = new MediaRecorder(stream, recorderOptions)
   mediaRecorder.ondataavailable = (event) => {
     if (event.data.size > 0) {
       recordedChunks.push(event.data)

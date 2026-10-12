@@ -289,13 +289,15 @@ describe('desktop recording telemetry', () => {
   class MockMediaRecorder {
     static instances: MockMediaRecorder[] = []
     stream: unknown
+    options: unknown
     mimeType = 'video/webm'
     state = 'inactive'
     ondataavailable: ((e: { data: { size: number } }) => void) | null = null
     onstop: (() => void) | null = null
     onerror: (() => void) | null = null
-    constructor(stream: unknown) {
+    constructor(stream: unknown, options?: unknown) {
       this.stream = stream
+      this.options = options
       MockMediaRecorder.instances.push(this)
     }
     start(): void {
@@ -406,5 +408,86 @@ describe('desktop recording telemetry', () => {
     MockMediaRecorder.instances[1].ondataavailable?.({ data: { size: 100 } })
     const withThumbnail = await stopRecording({ thumbnail: true })
     expect(withThumbnail.thumbnail).toBe('data:image/jpeg;base64,thumb')
+  })
+
+  it('applies quality, fps and bitrate on desktop', async () => {
+    const getUserMedia = vi.mocked(navigator.mediaDevices.getUserMedia)
+    await startRecording({ quality: 'fhd', fps: 30, bitrate: 2000000 })
+    expect(getUserMedia).toHaveBeenCalledWith({
+      video: { height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+      audio: true
+    })
+    expect(MockMediaRecorder.instances[0].options).toEqual({ videoBitsPerSecond: 2000000 })
+    await stopRecording()
+  })
+})
+
+describe('desktop capture config', () => {
+  beforeEach(() => {
+    setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64)')
+  })
+
+  afterEach(async () => {
+    await stopPreview()
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  function stubStream(): void {
+    const track = { stop: vi.fn() }
+    const stream = { getTracks: () => [track], getVideoTracks: () => [track] }
+    vi.stubGlobal('navigator', {
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+      mediaDevices: { getUserMedia: vi.fn().mockResolvedValue(stream) }
+    })
+  }
+
+  it('resizes and encodes the capture per options', async () => {
+    stubStream()
+    const toDataURL = vi.fn(() => 'data:image/png;base64,x')
+    const canvas = {
+      width: 0,
+      height: 0,
+      getContext: () => ({ drawImage: vi.fn() }),
+      toDataURL
+    }
+    vi.stubGlobal('document', {
+      createElement: (tag: string) =>
+        tag === 'canvas'
+          ? canvas
+          : {
+              muted: false,
+              playsInline: false,
+              videoWidth: 640,
+              videoHeight: 480,
+              play: vi.fn().mockResolvedValue(undefined)
+            }
+    })
+
+    await startPreview()
+    const photo = await capture({ resolution: { width: 320, height: 240 }, format: 'png', quality: 0.5 })
+    expect(canvas.width).toBe(320)
+    expect(canvas.height).toBe(240)
+    expect(toDataURL).toHaveBeenCalledWith('image/png', 0.5)
+    expect(photo.format).toBe('png')
+  })
+
+  it('rejects an unsupported desktop format', async () => {
+    stubStream()
+    vi.stubGlobal('document', {
+      createElement: (tag: string) =>
+        tag === 'canvas'
+          ? { width: 0, height: 0, getContext: () => ({ drawImage: vi.fn() }), toDataURL: () => '' }
+          : {
+              muted: false,
+              playsInline: false,
+              videoWidth: 640,
+              videoHeight: 480,
+              play: vi.fn().mockResolvedValue(undefined)
+            }
+    })
+
+    await startPreview()
+    await expect(capture({ format: 'heif' })).rejects.toThrow(/not supported on desktop/)
   })
 })

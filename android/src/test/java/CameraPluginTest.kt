@@ -168,4 +168,27 @@ class CameraPluginTest {
     assertFalse(CameraMath.supportsManualAwb(intArrayOf(CameraMath.AWB_MODE_AUTO)))
     assertFalse(CameraMath.supportsManualAwb(null))
   }
+
+  @Test
+  fun parseAspectRatioParsesAndRejectsInvalid() {
+    assertEquals(Pair(4, 3), CameraMath.parseAspectRatio("4:3"))
+    assertEquals(Pair(16, 9), CameraMath.parseAspectRatio("16:9"))
+    assertEquals(null, CameraMath.parseAspectRatio("auto"))
+    assertEquals(null, CameraMath.parseAspectRatio(null))
+  }
+
+  @Test
+  fun videoQualityNameNormalizes() {
+    assertEquals("sd", CameraMath.videoQualityName("sd"))
+    assertEquals("fhd", CameraMath.videoQualityName("fhd"))
+    assertEquals("hd", CameraMath.videoQualityName("weird"))
+    assertEquals("hd", CameraMath.videoQualityName(null))
+  }
+
+  @Test
+  fun gcdReducesAspectRatios() {
+    assertEquals(4, CameraMath.gcd(1920, 1080))
+    assertEquals(1, CameraMath.gcd(3, 2))
+    assertEquals(1, CameraMath.gcd(0, 0))
+  }
 }

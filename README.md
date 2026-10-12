@@ -171,6 +171,17 @@ const photo = await capture({ flash: 'auto' })
 imageEl.src = convertFileSrc(photo.path)
 ```
 
+Configurable (mobile and desktop):
+
+```ts
+await capture({
+  resolution: { width: 1920, height: 1080 }, // nearest supported size (best-effort)
+  aspectRatio: '16:9',                        // '4:3' | '16:9' | '1:1' | ...
+  format: 'jpeg',                             // 'jpeg' | 'png' | 'heif' (mobile jpeg; desktop jpeg/png)
+  quality: 0.9                                // 0..1 for lossy formats
+})
+```
+
 ### Video recording (with audio)
 
 ```ts
@@ -182,6 +193,9 @@ const video = await stopRecording()
 // Optionally request a base64 JPEG thumbnail of the recording:
 const withThumbnail = await stopRecording({ thumbnail: true })
 // withThumbnail.thumbnail: string | undefined
+
+// Configure quality/fps/bitrate (mobile and desktop):
+await startRecording({ quality: 'fhd', fps: 30, bitrate: 2_000_000 }) // quality: 'sd' | 'hd' | 'fhd' | 'uhd'
 ```
 
 ### Video thumbnail
@@ -285,7 +299,7 @@ const cameras = await getAvailableCameras()
 const caps = await getCapabilities(cameras[0].id)
 // { cameraId, hasFlash, hasTorch, zoomRange?, supportsFocus, focusModes?,
 //   exposureRange?, exposureModes?, whiteBalanceModes?, supportsWhiteBalanceTemperature?,
-//   photoFormats?, supportsPause }
+//   photoResolutions?, photoAspects?, videoQualities?, videoFps?, photoFormats?, supportsPause }
 ```
 
 The plugin follows one rule to avoid ambiguity:
@@ -481,10 +495,19 @@ type CameraLens = 'wide' | 'ultraWide' | 'telephoto' | (string & {})
 type FocusMode = 'auto' | 'continuous' | 'locked'
 type ExposureMode = 'auto' | 'locked'
 type WhiteBalanceMode = 'auto' | 'locked'
+type PhotoFormat = 'jpeg' | 'png' | 'heif'
+type VideoQuality = 'sd' | 'hd' | 'fhd' | 'uhd'
 type PermissionState = 'granted' | 'denied' | 'prompt'  // re-exported from @tauri-apps/api/core
 
 interface StartPreviewOptions { camera?: CameraDirection; cameraId?: string; windowed?: boolean }
-interface CaptureOptions { flash?: FlashMode }
+interface CaptureOptions {
+  flash?: FlashMode
+  resolution?: Resolution
+  aspectRatio?: string
+  format?: PhotoFormat
+  quality?: number
+}
+interface Resolution { width: number; height: number }
 interface ExposureRange { minEv: number; maxEv: number }
 interface WhiteBalanceOptions { mode: WhiteBalanceMode; temperatureK?: number }
 
@@ -527,13 +550,22 @@ interface CameraCapabilities {
   exposureModes?: ExposureMode[]
   whiteBalanceModes?: WhiteBalanceMode[]
   supportsWhiteBalanceTemperature?: boolean
+  photoResolutions?: Resolution[]
+  photoAspects?: string[]
+  videoQualities?: VideoQuality[]
+  videoFps?: number[]
   photoFormats?: string[]
   supportsPause: boolean
 }
 
 interface RecordingProgress { duration: number; bytesRecorded?: number; bitrate?: number }
 
-interface StartRecordingOptions { onProgress?: Channel<RecordingProgress> }
+interface StartRecordingOptions {
+  onProgress?: Channel<RecordingProgress>
+  quality?: VideoQuality
+  fps?: number
+  bitrate?: number
+}
 interface StopRecordingOptions { thumbnail?: boolean }
 interface SaveToGalleryOptions { type?: 'image' | 'video' }
 ```
