@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0-beta.0]
+
+- [`b5ef30d`](https://github.com/kessdev/tauri-plugin-camera/commit/b5ef30d40496f223f47137173b6de22b867e5ca6) Add `getAvailableCameras()` and `getCapabilities()` for camera introspection.
+    Remove `isFlashAvailable()` and `getZoomRange()` in favor of the unified
+    declarative capabilities surface (use `getCapabilities().hasFlash` /
+    `getCapabilities().zoomRange`, and `getZoom()` for the live value).
+
 ## [0.1.1-beta.4]
 
 - [`768f012`](https://github.com/kessdev/tauri-plugin-camera/commit/768f01258a9d631e539390a744cfee79e4e77ec3) Add `getZoom`/`getZoomRange`/`isFlashAvailable`, save videos to the gallery,
