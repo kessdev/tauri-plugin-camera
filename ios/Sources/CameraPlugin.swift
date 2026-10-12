@@ -41,6 +41,32 @@ struct GetCapabilitiesOptions: Decodable {
   var cameraId: String?
 }
 
+struct TorchOptions: Decodable {
+  var on: Bool?
+}
+
+struct FocusPointOptions: Decodable {
+  var x: Double?
+  var y: Double?
+}
+
+struct FocusModeOptions: Decodable {
+  var mode: String?
+}
+
+struct ExposureOptions: Decodable {
+  var ev: Double?
+}
+
+struct ExposureModeOptions: Decodable {
+  var mode: String?
+}
+
+struct WhiteBalanceOptions: Decodable {
+  var mode: String?
+  var temperatureK: Int?
+}
+
 /// Encodable payload for a camera entry returned by `getAvailableCameras`.
 struct CameraInfoPayload: Encodable {
   let id: String
@@ -122,6 +148,25 @@ func resolveCameraId(availableIds: [String], requested: String?) throws -> Strin
   guard let requested = requested else { return nil }
   if availableIds.contains(requested) { return requested }
   throw CaptureError.cameraIdUnavailable(requested)
+}
+
+/// Clamps an exposure bias to the supported range.
+func clampExposureBias(_ ev: Float, minBias: Float, maxBias: Float) -> Float {
+  min(max(ev, minBias), maxBias)
+}
+
+/// Clamps a white balance channel gain to `[1, maxGain]`.
+func clampWhiteBalanceGain(_ gain: Float, maxGain: Float) -> Float {
+  min(max(gain, 1.0), maxGain)
+}
+
+/// Maps a plugin focus mode name to an `AVCaptureDevice.FocusMode`.
+func focusMode(fromName name: String?) -> AVCaptureDevice.FocusMode {
+  switch name {
+  case "auto": return .autoFocus
+  case "continuous": return .continuousAutoFocus
+  default: return .locked
+  }
 }
 
 class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRecordingDelegate {
@@ -232,6 +277,15 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
     let previewLayer = AVCaptureVideoPreviewLayer(session: session)
     cameraView.addPreviewLayer(previewLayer)
     self.captureVideoPreviewLayer = previewLayer
+    if let connection = previewLayer.connection {
+      if connection.isVideoOrientationSupported {
+        connection.videoOrientation = .portrait
+      }
+      if cameraDevice.position == .front && connection.isVideoMirroringSupported {
+        connection.automaticallyAdjustsVideoMirroring = false
+        connection.isVideoMirrored = true
+      }
+    }
     self.captureSession = session
 
     self.windowed = windowed
@@ -439,6 +493,144 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
     invoke.resolve(Double(device.videoZoomFactor))
   }
 
+  // MARK: Fine controls
+
+  @objc private func setTorch(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(TorchOptions.self)
+    guard let device = currentCamera else {
+      invoke.reject("Camera preview is not active. Call startPreview() first.")
+      return
+    }
+    guard device.hasTorch else {
+      invoke.reject("Torch is not available on this camera.")
+      return
+    }
+    do {
+      try device.lockForConfiguration()
+      device.torchMode = (args.on ?? false) ? .on : .off
+      device.unlockForConfiguration()
+      invoke.resolve()
+    } catch {
+      invoke.reject("Failed to set torch: \(error.localizedDescription)")
+    }
+  }
+
+  @objc private func setFocusPoint(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(FocusPointOptions.self)
+    guard let device = currentCamera else {
+      invoke.reject("Camera preview is not active. Call startPreview() first.")
+      return
+    }
+    guard device.isFocusPointOfInterestSupported else {
+      invoke.reject("Focus point is not supported on this camera.")
+      return
+    }
+    let x = min(max(args.x ?? 0.5, 0.0), 1.0)
+    let y = min(max(args.y ?? 0.5, 0.0), 1.0)
+    do {
+      try device.lockForConfiguration()
+      device.focusPointOfInterest = CGPoint(x: x, y: y)
+      if device.isFocusModeSupported(.autoFocus) {
+        device.focusMode = .autoFocus
+      }
+      device.unlockForConfiguration()
+      invoke.resolve()
+    } catch {
+      invoke.reject("Failed to set focus point: \(error.localizedDescription)")
+    }
+  }
+
+  @objc private func setFocusMode(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(FocusModeOptions.self)
+    guard let device = currentCamera else {
+      invoke.reject("Camera preview is not active. Call startPreview() first.")
+      return
+    }
+    let mode = focusMode(fromName: args.mode)
+    guard device.isFocusModeSupported(mode) else {
+      invoke.reject("Focus mode \(args.mode ?? "locked") is not supported on this camera.")
+      return
+    }
+    do {
+      try device.lockForConfiguration()
+      device.focusMode = mode
+      device.unlockForConfiguration()
+      invoke.resolve()
+    } catch {
+      invoke.reject("Failed to set focus mode: \(error.localizedDescription)")
+    }
+  }
+
+  @objc private func setExposureCompensation(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(ExposureOptions.self)
+    guard let device = currentCamera else {
+      invoke.reject("Camera preview is not active. Call startPreview() first.")
+      return
+    }
+    let bias = clampExposureBias(
+      Float(args.ev ?? 0.0), minBias: device.minExposureTargetBias,
+      maxBias: device.maxExposureTargetBias)
+    do {
+      try device.lockForConfiguration()
+      device.setExposureTargetBias(bias)
+      device.unlockForConfiguration()
+      invoke.resolve()
+    } catch {
+      invoke.reject("Failed to set exposure: \(error.localizedDescription)")
+    }
+  }
+
+  @objc private func setExposureMode(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(ExposureModeOptions.self)
+    guard let device = currentCamera else {
+      invoke.reject("Camera preview is not active. Call startPreview() first.")
+      return
+    }
+    let mode: AVCaptureDevice.ExposureMode = (args.mode == "locked") ? .locked : .continuousAutoExposure
+    guard device.isExposureModeSupported(mode) else {
+      invoke.reject("Exposure mode \(args.mode ?? "auto") is not supported on this camera.")
+      return
+    }
+    do {
+      try device.lockForConfiguration()
+      device.exposureMode = mode
+      device.unlockForConfiguration()
+      invoke.resolve()
+    } catch {
+      invoke.reject("Failed to set exposure mode: \(error.localizedDescription)")
+    }
+  }
+
+  @objc private func setWhiteBalance(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(WhiteBalanceOptions.self)
+    guard let device = currentCamera else {
+      invoke.reject("Camera preview is not active. Call startPreview() first.")
+      return
+    }
+    do {
+      try device.lockForConfiguration()
+      if args.mode == "locked" {
+        var gains = device.deviceWhiteBalanceGains
+        if let kelvin = args.temperatureK {
+          let values = AVCaptureDevice.WhiteBalanceTemperatureAndTintValues(
+            temperature: Float(kelvin), tint: 0)
+          gains = device.deviceWhiteBalanceGains(for: values)
+        }
+        let maxGain = device.maxWhiteBalanceGain
+        gains.redGain = clampWhiteBalanceGain(gains.redGain, maxGain: maxGain)
+        gains.greenGain = clampWhiteBalanceGain(gains.greenGain, maxGain: maxGain)
+        gains.blueGain = clampWhiteBalanceGain(gains.blueGain, maxGain: maxGain)
+        device.setWhiteBalanceModeLocked(with: gains)
+      } else {
+        device.whiteBalanceMode = .continuousAutoWhiteBalance
+      }
+      device.unlockForConfiguration()
+      invoke.resolve()
+    } catch {
+      invoke.reject("Failed to set white balance: \(error.localizedDescription)")
+    }
+  }
+
   // MARK: Introspection
 
   /// All physical lenses exposed by the plugin (wide, ultra-wide, telephoto, front).
@@ -511,6 +703,13 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
     if !modes.isEmpty {
       result["focusModes"] = modes
     }
+    result["exposureRange"] = [
+      "minEv": Double(camera.minExposureTargetBias),
+      "maxEv": Double(camera.maxExposureTargetBias),
+    ]
+    result["exposureModes"] = ["auto", "locked"]
+    result["whiteBalanceModes"] = ["auto", "locked"]
+    result["supportsWhiteBalanceTemperature"] = camera.isWhiteBalanceModeSupported(.locked)
     invoke.resolve(result)
   }
 

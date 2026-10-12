@@ -19,6 +19,12 @@ import {
   setFlash,
   setZoom,
   getZoom,
+  setTorch,
+  setFocusPoint,
+  setFocusMode,
+  setExposureCompensation,
+  setExposureMode,
+  setWhiteBalance,
   getAvailableCameras,
   getCapabilities,
   saveToGallery,
@@ -80,6 +86,34 @@ describe('mobile dispatch', () => {
     expect(invokeMock).toHaveBeenNthCalledWith(1, 'plugin:camera-kessdev|flip_camera')
     expect(invokeMock).toHaveBeenNthCalledWith(2, 'plugin:camera-kessdev|set_flash', { mode: 'on' })
     expect(invokeMock).toHaveBeenNthCalledWith(3, 'plugin:camera-kessdev|set_zoom', { factor: 2.5 })
+  })
+
+  it('fine controls invoke mobile commands', async () => {
+    invokeMock.mockResolvedValue(undefined)
+    await setTorch(true)
+    await setFocusPoint(0.5, 0.25)
+    await setFocusMode('continuous')
+    await setExposureCompensation(1.5)
+    await setExposureMode('locked')
+    await setWhiteBalance({ mode: 'locked', temperatureK: 5000 })
+    expect(invokeMock).toHaveBeenNthCalledWith(1, 'plugin:camera-kessdev|set_torch', { on: true })
+    expect(invokeMock).toHaveBeenNthCalledWith(2, 'plugin:camera-kessdev|set_focus_point', {
+      x: 0.5,
+      y: 0.25
+    })
+    expect(invokeMock).toHaveBeenNthCalledWith(3, 'plugin:camera-kessdev|set_focus_mode', {
+      mode: 'continuous'
+    })
+    expect(invokeMock).toHaveBeenNthCalledWith(4, 'plugin:camera-kessdev|set_exposure_compensation', {
+      ev: 1.5
+    })
+    expect(invokeMock).toHaveBeenNthCalledWith(5, 'plugin:camera-kessdev|set_exposure_mode', {
+      mode: 'locked'
+    })
+    expect(invokeMock).toHaveBeenNthCalledWith(6, 'plugin:camera-kessdev|set_white_balance', {
+      mode: 'locked',
+      temperatureK: 5000
+    })
   })
 
   it('getZoom invokes the mobile command', async () => {
@@ -149,6 +183,15 @@ describe('desktop degradation', () => {
 
   it('setFlash throws on desktop', async () => {
     await expect(setFlash('on')).rejects.toThrow(/not supported on desktop/)
+  })
+
+  it('fine controls throw on desktop', async () => {
+    await expect(setTorch(true)).rejects.toThrow(/not supported on desktop/)
+    await expect(setFocusPoint(0.5, 0.5)).rejects.toThrow(/not supported on desktop/)
+    await expect(setFocusMode('auto')).rejects.toThrow(/not supported on desktop/)
+    await expect(setExposureCompensation(1)).rejects.toThrow(/not supported on desktop/)
+    await expect(setExposureMode('auto')).rejects.toThrow(/not supported on desktop/)
+    await expect(setWhiteBalance({ mode: 'auto' })).rejects.toThrow(/not supported on desktop/)
   })
 
   it('getZoom throws on desktop', async () => {

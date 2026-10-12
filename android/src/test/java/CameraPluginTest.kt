@@ -129,4 +129,43 @@ class CameraPluginTest {
   fun resolveCameraIdThrowsWhenMissing() {
     CameraMath.resolveCameraId(listOf("0"), "9")
   }
+
+  @Test
+  fun afModeFromFocusModeMaps() {
+    assertEquals(CameraMath.AF_MODE_AUTO, CameraMath.afModeFromFocusMode("auto"))
+    assertEquals(CameraMath.AF_MODE_CONTINUOUS_PICTURE, CameraMath.afModeFromFocusMode("continuous"))
+    assertEquals(CameraMath.AF_MODE_OFF, CameraMath.afModeFromFocusMode("locked"))
+  }
+
+  @Test
+  fun awbModeFromStringMaps() {
+    assertEquals(CameraMath.AWB_MODE_AUTO, CameraMath.awbModeFromString("auto"))
+    assertEquals(CameraMath.AWB_MODE_OFF, CameraMath.awbModeFromString("locked"))
+  }
+
+  @Test
+  fun evToCompensationIndexClamps() {
+    assertEquals(0, CameraMath.evToCompensationIndex(0.0, 1.0 / 3, -12, 12))
+    assertEquals(3, CameraMath.evToCompensationIndex(1.0, 1.0 / 3, -12, 12))
+    assertEquals(12, CameraMath.evToCompensationIndex(100.0, 1.0 / 3, -12, 12))
+    assertEquals(-12, CameraMath.evToCompensationIndex(-100.0, 1.0 / 3, -12, 12))
+    assertEquals(0, CameraMath.evToCompensationIndex(1.0, 0.0, -12, 12))
+  }
+
+  @Test
+  fun awbGainsFromKelvinNormalizeGreenAndStayPositive() {
+    val gains = CameraMath.awbGainsFromKelvin(5000)
+    assertEquals(1f, gains[1], 1e-6f)
+    assertEquals(1f, gains[2], 1e-6f)
+    assertTrue(gains[0] > 0f)
+    assertTrue(gains[3] > 0f)
+    assertTrue(CameraMath.awbGainsFromKelvin(99999)[0] > 0f)
+  }
+
+  @Test
+  fun supportsManualAwbDetectsOffMode() {
+    assertTrue(CameraMath.supportsManualAwb(intArrayOf(CameraMath.AWB_MODE_OFF, CameraMath.AWB_MODE_AUTO)))
+    assertFalse(CameraMath.supportsManualAwb(intArrayOf(CameraMath.AWB_MODE_AUTO)))
+    assertFalse(CameraMath.supportsManualAwb(null))
+  }
 }

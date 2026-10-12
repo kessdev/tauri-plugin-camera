@@ -12,6 +12,12 @@
     getPreviewStream,
     getAvailableCameras,
     getCapabilities,
+    setTorch,
+    setFocusPoint,
+    setFocusMode,
+    setExposureCompensation,
+    setExposureMode,
+    setWhiteBalance,
     convertFileSrc
   } from 'tauri-plugin-camera-kessdev'
 
@@ -99,6 +105,18 @@
     try { updateLog(await checkPermissions()) } catch (e) { updateLog(e) }
   }
 
+  async function _controls() {
+    try {
+      await setTorch(true)
+      await setFocusPoint(0.5, 0.5)
+      await setFocusMode('continuous')
+      await setExposureCompensation(1)
+      await setExposureMode('auto')
+      await setWhiteBalance({ mode: 'locked', temperatureK: 5000 })
+      updateLog('torch/focus/exposure/wb applied')
+    } catch (e) { updateLog(e) }
+  }
+
   async function _request() {
     try { updateLog(await requestPermissions()) } catch (e) { updateLog(e) }
   }
@@ -125,6 +143,7 @@
     <button onclick={_check}>Check Permissions</button>
     <button onclick={_request}>Request Permissions</button>
     <button onclick={_cameras}>Cameras &amp; Start Lens</button>
+    <button onclick={_controls}>Torch/Focus/Exp/WB</button>
   </div>
 
   {#if photoSrc}

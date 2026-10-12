@@ -11,6 +11,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.drawable.Drawable
 import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.params.RggbChannelVector
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
@@ -18,14 +19,18 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Base64
+import android.view.Surface
 import android.view.ViewGroup
 import android.webkit.WebView
 import android.widget.FrameLayout
+import androidx.camera.camera2.interop.Camera2CameraControl
 import androidx.camera.camera2.interop.Camera2CameraInfo
+import androidx.camera.camera2.interop.CaptureRequestOptions
 import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraInfo as CameraXInfo
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
@@ -101,6 +106,38 @@ class StopRecordingOptions {
 @InvokeArg
 class GetCapabilitiesOptions {
   var cameraId: String? = null
+}
+
+@InvokeArg
+class TorchOptions {
+  var on: Boolean = false
+}
+
+@InvokeArg
+class FocusPointOptions {
+  var x: Double = 0.5
+  var y: Double = 0.5
+}
+
+@InvokeArg
+class FocusModeOptions {
+  var mode: String? = null
+}
+
+@InvokeArg
+class ExposureOptions {
+  var ev: Double = 0.0
+}
+
+@InvokeArg
+class ExposureModeOptions {
+  var mode: String? = null
+}
+
+@InvokeArg
+class WhiteBalanceOptions {
+  var mode: String? = null
+  var temperatureK: Int? = null
 }
 
 @TauriPlugin(
@@ -218,6 +255,7 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
 
     val imageCapture = ImageCapture.Builder()
       .setFlashMode(flashMode)
+      .setTargetRotation(previewView?.display?.rotation ?: Surface.ROTATION_0)
       .build()
     this.imageCapture = imageCapture
 
@@ -455,6 +493,101 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
     invoke.resolveObject(zoom.toDouble())
   }
 
+  @Command
+  fun setTorch(invoke: Invoke) {
+    val args = invoke.parseArgs(TorchOptions::class.java)
+    val camera = camera ?: run {
+      invoke.reject("Camera preview is not active. Call startPreview() first.")
+      return
+    }
+    camera.cameraControl.enableTorch(args.on)
+    invoke.resolve()
+  }
+
+  @Command
+  fun setFocusPoint(invoke: Invoke) {
+    val args = invoke.parseArgs(FocusPointOptions::class.java)
+    val camera = camera
+    val previewView = previewView
+    if (camera == null || previewView == null) {
+      invoke.reject("Camera preview is not active. Call startPreview() first.")
+      return
+    }
+    val factory = previewView.meteringPointFactory
+    val point = factory.createPoint(
+      (args.x.coerceIn(0.0, 1.0) * previewView.width).toFloat(),
+      (args.y.coerceIn(0.0, 1.0) * previewView.height).toFloat()
+    )
+    camera.cameraControl.startFocusAndMetering(FocusMeteringAction.Builder(point).build())
+    invoke.resolve()
+  }
+
+  @Command
+  fun setFocusMode(invoke: Invoke) {
+    val args = invoke.parseArgs(FocusModeOptions::class.java)
+    val camera = camera ?: run {
+      invoke.reject("Camera preview is not active. Call startPreview() first.")
+      return
+    }
+    setCaptureRequestOption(
+      camera, CameraCharacteristics.CONTROL_AF_MODE, CameraMath.afModeFromFocusMode(args.mode))
+    invoke.resolve()
+  }
+
+  @Command
+  fun setExposureCompensation(invoke: Invoke) {
+    val args = invoke.parseArgs(ExposureOptions::class.java)
+    val camera = camera ?: run {
+      invoke.reject("Camera preview is not active. Call startPreview() first.")
+      return
+    }
+    val info = camera.cameraInfo
+    val step = characteristic(info, CameraCharacteristics.CONTROL_AE_COMPENSATION_STEP)?.toDouble() ?: 0.0
+    val range = characteristic(info, CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE)
+    val index = CameraMath.evToCompensationIndex(args.ev, step, range?.lower ?: 0, range?.upper ?: 0)
+    camera.cameraControl.setExposureCompensationIndex(index)
+    invoke.resolve()
+  }
+
+  @Command
+  fun setExposureMode(invoke: Invoke) {
+    val args = invoke.parseArgs(ExposureModeOptions::class.java)
+    val camera = camera ?: run {
+      invoke.reject("Camera preview is not active. Call startPreview() first.")
+      return
+    }
+    setCaptureRequestOption(camera, CameraCharacteristics.CONTROL_AE_LOCK, args.mode == "locked")
+    invoke.resolve()
+  }
+
+  @Command
+  fun setWhiteBalance(invoke: Invoke) {
+    val args = invoke.parseArgs(WhiteBalanceOptions::class.java)
+    val camera = camera ?: run {
+      invoke.reject("Camera preview is not active. Call startPreview() first.")
+      return
+    }
+    if (args.mode == "locked") {
+      val builder = CaptureRequestOptions.Builder()
+        .setCaptureRequestOption(CameraCharacteristics.CONTROL_AWB_MODE, CameraMath.AWB_MODE_OFF)
+      val kelvin = args.temperatureK
+      if (kelvin != null && CameraMath.supportsManualAwb(
+          characteristic(camera.cameraInfo, CameraCharacteristics.CONTROL_AWB_AVAILABLE_MODES)
+        )
+      ) {
+        val gains = CameraMath.awbGainsFromKelvin(kelvin)
+        builder.setCaptureRequestOption(
+          CameraCharacteristics.CONTROL_AWB_GAINS,
+          RggbChannelVector(gains[0], gains[1], gains[2], gains[3])
+        )
+      }
+      camera2Control(camera).setCaptureRequestOptions(builder.build())
+    } else {
+      setCaptureRequestOption(camera, CameraCharacteristics.CONTROL_AWB_MODE, CameraMath.AWB_MODE_AUTO)
+    }
+    invoke.resolve()
+  }
+
   // -------------------------------------------------------------------------
   // Introspection
   // -------------------------------------------------------------------------
@@ -489,6 +622,18 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
     } catch (_: Exception) {
       null
     }
+  }
+
+  private fun camera2Control(camera: Camera): Camera2CameraControl =
+    Camera2CameraControl.from(camera.cameraControl)
+
+  private fun <T> setCaptureRequestOption(
+    camera: Camera,
+    key: CameraCharacteristics.Key<T>,
+    value: T
+  ) {
+    val options = CaptureRequestOptions.Builder().setCaptureRequestOption(key, value).build()
+    camera2Control(camera).setCaptureRequestOptions(options)
   }
 
   private fun lensName(info: CameraXInfo): String? {
@@ -552,6 +697,28 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
       focusModes.forEach { modes.put(it) }
       obj.put("focusModes", modes)
     }
+
+    val compRange = characteristic(info, CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE)
+    val compStep = characteristic(info, CameraCharacteristics.CONTROL_AE_COMPENSATION_STEP)?.toDouble()
+    if (compRange != null && compStep != null && compStep > 0.0) {
+      val range = JSObject()
+      range.put("minEv", compRange.lower * compStep)
+      range.put("maxEv", compRange.upper * compStep)
+      obj.put("exposureRange", range)
+    }
+    val exposureModes = JSArray()
+    exposureModes.put("auto")
+    exposureModes.put("locked")
+    obj.put("exposureModes", exposureModes)
+
+    val wbModes = JSArray()
+    wbModes.put("auto")
+    wbModes.put("locked")
+    obj.put("whiteBalanceModes", wbModes)
+    obj.put(
+      "supportsWhiteBalanceTemperature",
+      CameraMath.supportsManualAwb(characteristic(info, CameraCharacteristics.CONTROL_AWB_AVAILABLE_MODES))
+    )
 
     val formats = JSArray()
     formats.put("jpeg")

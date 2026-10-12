@@ -11,6 +11,12 @@ Default permissions for the camera plugin
 - `allow-set-flash`
 - `allow-set-zoom`
 - `allow-get-zoom`
+- `allow-set-torch`
+- `allow-set-focus-point`
+- `allow-set-focus-mode`
+- `allow-set-exposure-compensation`
+- `allow-set-exposure-mode`
+- `allow-set-white-balance`
 - `allow-get-available-cameras`
 - `allow-get-capabilities`
 - `allow-start-recording`
@@ -266,6 +272,58 @@ Denies the save_to_gallery command without any pre-configured scope.
 <tr>
 <td>
 
+`camera-kessdev:allow-set-exposure-compensation`
+
+</td>
+<td>
+
+Enables the set_exposure_compensation command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`camera-kessdev:deny-set-exposure-compensation`
+
+</td>
+<td>
+
+Denies the set_exposure_compensation command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`camera-kessdev:allow-set-exposure-mode`
+
+</td>
+<td>
+
+Enables the set_exposure_mode command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`camera-kessdev:deny-set-exposure-mode`
+
+</td>
+<td>
+
+Denies the set_exposure_mode command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `camera-kessdev:allow-set-flash`
 
 </td>
@@ -285,6 +343,110 @@ Enables the set_flash command without any pre-configured scope.
 <td>
 
 Denies the set_flash command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`camera-kessdev:allow-set-focus-mode`
+
+</td>
+<td>
+
+Enables the set_focus_mode command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`camera-kessdev:deny-set-focus-mode`
+
+</td>
+<td>
+
+Denies the set_focus_mode command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`camera-kessdev:allow-set-focus-point`
+
+</td>
+<td>
+
+Enables the set_focus_point command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`camera-kessdev:deny-set-focus-point`
+
+</td>
+<td>
+
+Denies the set_focus_point command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`camera-kessdev:allow-set-torch`
+
+</td>
+<td>
+
+Enables the set_torch command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`camera-kessdev:deny-set-torch`
+
+</td>
+<td>
+
+Denies the set_torch command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`camera-kessdev:allow-set-white-balance`
+
+</td>
+<td>
+
+Enables the set_white_balance command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`camera-kessdev:deny-set-white-balance`
+
+</td>
+<td>
+
+Denies the set_white_balance command without any pre-configured scope.
 
 </td>
 </tr>

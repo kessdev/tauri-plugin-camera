@@ -66,6 +66,28 @@ export type CameraFacing = 'front' | 'back' | 'external'
  */
 export type CameraLens = 'wide' | 'ultraWide' | 'telephoto' | (string & {})
 
+/** Camera focus mode. */
+export type FocusMode = 'auto' | 'continuous' | 'locked'
+
+/** Camera exposure mode. */
+export type ExposureMode = 'auto' | 'locked'
+
+/** White balance mode. */
+export type WhiteBalanceMode = 'auto' | 'locked'
+
+/** Supported exposure compensation range (EV). */
+export interface ExposureRange {
+  minEv: number
+  maxEv: number
+}
+
+/** Options for `setWhiteBalance`. */
+export interface WhiteBalanceOptions {
+  mode: WhiteBalanceMode
+  /** Color temperature in Kelvin; only meaningful when `mode` is `locked`. */
+  temperatureK?: number
+}
+
 /** A camera (physical or logical lens) available on the device. */
 export interface CameraInfo {
   /** Native, session-stable identifier (usable to reference this camera). */
@@ -93,6 +115,11 @@ export interface CameraCapabilities {
   zoomRange?: ZoomRange
   supportsFocus: boolean
   focusModes?: string[]
+  exposureRange?: ExposureRange
+  exposureModes?: ExposureMode[]
+  whiteBalanceModes?: WhiteBalanceMode[]
+  /** Whether an arbitrary color temperature (Kelvin) can be applied. */
+  supportsWhiteBalanceTemperature?: boolean
   photoFormats?: string[]
   supportsPause: boolean
 }
@@ -431,6 +458,64 @@ export async function getCapabilities(cameraId?: string): Promise<CameraCapabili
     return await invoke<CameraCapabilities>('plugin:camera-kessdev|get_capabilities', { cameraId })
   }
   return desktopCapabilities(cameraId)
+}
+
+// ---------------------------------------------------------------------------
+// Fine controls (torch, focus, exposure, white balance)
+// ---------------------------------------------------------------------------
+
+/** Turns the torch (continuous light) on or off (mobile). */
+export async function setTorch(on: boolean): Promise<void> {
+  if (isMobile()) {
+    await invoke('plugin:camera-kessdev|set_torch', { on })
+    return
+  }
+  throw new Error('setTorch is not supported on desktop.')
+}
+
+/** Sets the focus point in normalized coordinates (0..1, top-left origin) (mobile). */
+export async function setFocusPoint(x: number, y: number): Promise<void> {
+  if (isMobile()) {
+    await invoke('plugin:camera-kessdev|set_focus_point', { x, y })
+    return
+  }
+  throw new Error('setFocusPoint is not supported on desktop.')
+}
+
+/** Sets the focus mode (mobile). */
+export async function setFocusMode(mode: FocusMode): Promise<void> {
+  if (isMobile()) {
+    await invoke('plugin:camera-kessdev|set_focus_mode', { mode })
+    return
+  }
+  throw new Error('setFocusMode is not supported on desktop.')
+}
+
+/** Sets the exposure compensation in EV (mobile). */
+export async function setExposureCompensation(ev: number): Promise<void> {
+  if (isMobile()) {
+    await invoke('plugin:camera-kessdev|set_exposure_compensation', { ev })
+    return
+  }
+  throw new Error('setExposureCompensation is not supported on desktop.')
+}
+
+/** Sets the exposure mode (mobile). */
+export async function setExposureMode(mode: ExposureMode): Promise<void> {
+  if (isMobile()) {
+    await invoke('plugin:camera-kessdev|set_exposure_mode', { mode })
+    return
+  }
+  throw new Error('setExposureMode is not supported on desktop.')
+}
+
+/** Sets the white balance mode (with an optional Kelvin temperature when `locked`) (mobile). */
+export async function setWhiteBalance(options: WhiteBalanceOptions): Promise<void> {
+  if (isMobile()) {
+    await invoke('plugin:camera-kessdev|set_white_balance', { ...options })
+    return
+  }
+  throw new Error('setWhiteBalance is not supported on desktop.')
 }
 
 // ---------------------------------------------------------------------------

@@ -247,6 +247,31 @@ const zoom = await getZoom() // number
 On desktop `getZoom()` rejects with a descriptive error (consistent with
 `setZoom`).
 
+### Fine controls
+
+Torch, tap-to-focus, exposure and white balance (mobile; desktop throws):
+
+```ts
+await setTorch(true)                 // continuous light (independent from capture flash)
+await setFocusPoint(0.5, 0.5)        // normalized 0..1, top-left origin
+await setFocusMode('continuous')     // 'auto' | 'continuous' | 'locked'
+await setExposureCompensation(1.5)   // EV, clamped to getCapabilities().exposureRange
+await setExposureMode('locked')      // 'auto' | 'locked'
+await setWhiteBalance({ mode: 'locked', temperatureK: 5000 })  // Kelvin; 'auto' | 'locked'
+```
+
+Details:
+
+- **Torch** is independent from the capture flash (`setFlash`); query `hasTorch`.
+- **Focus** uses normalized coordinates (0..1, top-left origin); query `supportsFocus` / `focusModes`.
+- **Exposure**: `ev` is clamped to `exposureRange`; `exposureModes` is `['auto', 'locked']`.
+- **White balance** is uniform across platforms: `mode: 'auto' | 'locked'`. In `locked`, `temperatureK` (Kelvin) is applied where the hardware supports it (`supportsWhiteBalanceTemperature`); when unsupported, the plugin locks the current gains (or rejects) instead of inventing a temperature. `auto` uses the platform's continuous AWB.
+
+On desktop all of these controls reject with a descriptive error. Query the
+supported values with `getCapabilities()` first: `hasTorch`,
+`supportsFocus`/`focusModes`, `exposureRange`/`exposureModes`,
+`whiteBalanceModes`/`supportsWhiteBalanceTemperature`.
+
 ### Camera introspection
 
 Use `getAvailableCameras()` to list the cameras (physical/logical lenses) and
@@ -259,6 +284,7 @@ const cameras = await getAvailableCameras()
 // No argument: the active camera, or the default (back) camera without a preview.
 const caps = await getCapabilities(cameras[0].id)
 // { cameraId, hasFlash, hasTorch, zoomRange?, supportsFocus, focusModes?,
+//   exposureRange?, exposureModes?, whiteBalanceModes?, supportsWhiteBalanceTemperature?,
 //   photoFormats?, supportsPause }
 ```
 
@@ -427,6 +453,12 @@ destination from the generated Xcode project (`src-tauri/gen/apple`).
 | `setFlash(mode)` | ✓ | ✗ (throws) |
 | `setZoom(factor)` | ✓ | ✗ (throws) |
 | `getZoom()` | ✓ | ✗ (throws) |
+| `setTorch(on)` | ✓ | ✗ (throws) |
+| `setFocusPoint(x, y)` | ✓ | ✗ (throws) |
+| `setFocusMode(mode)` | ✓ | ✗ (throws) |
+| `setExposureCompensation(ev)` | ✓ | ✗ (throws) |
+| `setExposureMode(mode)` | ✓ | ✗ (throws) |
+| `setWhiteBalance(options)` | ✓ | ✗ (throws) |
 | `getAvailableCameras()` | ✓ | ✓ |
 | `getCapabilities(cameraId?)` | ✓ | ✓ (partial) |
 | `startRecording(options?)` | ✓ `VideoCapture` / `AVCaptureMovieFileOutput` | ✓ `MediaRecorder` |
@@ -446,10 +478,15 @@ type CameraDirection = 'front' | 'back'
 type FlashMode = 'on' | 'off' | 'auto'
 type CameraFacing = 'front' | 'back' | 'external'
 type CameraLens = 'wide' | 'ultraWide' | 'telephoto' | (string & {})
+type FocusMode = 'auto' | 'continuous' | 'locked'
+type ExposureMode = 'auto' | 'locked'
+type WhiteBalanceMode = 'auto' | 'locked'
 type PermissionState = 'granted' | 'denied' | 'prompt'  // re-exported from @tauri-apps/api/core
 
-interface StartPreviewOptions { camera?: CameraDirection; windowed?: boolean }
+interface StartPreviewOptions { camera?: CameraDirection; cameraId?: string; windowed?: boolean }
 interface CaptureOptions { flash?: FlashMode }
+interface ExposureRange { minEv: number; maxEv: number }
+interface WhiteBalanceOptions { mode: WhiteBalanceMode; temperatureK?: number }
 
 interface Photo {
   path?: string          // mobile: absolute path to the captured file
@@ -486,6 +523,10 @@ interface CameraCapabilities {
   zoomRange?: ZoomRange
   supportsFocus: boolean
   focusModes?: string[]
+  exposureRange?: ExposureRange
+  exposureModes?: ExposureMode[]
+  whiteBalanceModes?: WhiteBalanceMode[]
+  supportsWhiteBalanceTemperature?: boolean
   photoFormats?: string[]
   supportsPause: boolean
 }

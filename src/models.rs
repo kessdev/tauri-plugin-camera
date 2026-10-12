@@ -41,6 +41,76 @@ pub struct ZoomOptions {
   pub factor: f64,
 }
 
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TorchOptions {
+  pub on: bool,
+}
+
+/// Normalized focus point (0..1, top-left origin).
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FocusPointOptions {
+  pub x: f64,
+  pub y: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FocusMode {
+  Auto,
+  Continuous,
+  Locked,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FocusModeOptions {
+  pub mode: FocusMode,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExposureOptions {
+  pub ev: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ExposureMode {
+  Auto,
+  Locked,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExposureModeOptions {
+  pub mode: ExposureMode,
+}
+
+/// Supported exposure compensation range (EV).
+#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExposureRange {
+  pub min_ev: f64,
+  pub max_ev: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum WhiteBalanceMode {
+  Auto,
+  Locked,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WhiteBalanceOptions {
+  pub mode: WhiteBalanceMode,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub temperature_k: Option<u32>,
+}
+
 /// Result of a photo capture.
 ///
 /// On mobile, `path` points to a temporary file written by the native backend
@@ -116,6 +186,14 @@ pub struct CameraCapabilities {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub focus_modes: Option<Vec<String>>,
   #[serde(skip_serializing_if = "Option::is_none")]
+  pub exposure_range: Option<ExposureRange>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub exposure_modes: Option<Vec<ExposureMode>>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub white_balance_modes: Option<Vec<WhiteBalanceMode>>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub supports_white_balance_temperature: Option<bool>,
+  #[serde(skip_serializing_if = "Option::is_none")]
   pub photo_formats: Option<Vec<String>>,
   pub supports_pause: bool,
 }
@@ -166,6 +244,54 @@ mod tests {
       serde_json::to_string(&CameraDirection::Back).unwrap(),
       r#""back""#
     );
+  }
+
+  #[test]
+  fn deserializes_focus_point_options() {
+    let opts: FocusPointOptions = serde_json::from_str(r#"{"x":0.5,"y":0.25}"#).unwrap();
+    assert_eq!(opts.x, 0.5);
+    assert_eq!(opts.y, 0.25);
+  }
+
+  #[test]
+  fn serializes_control_modes_lowercase() {
+    assert_eq!(
+      serde_json::to_string(&FocusMode::Continuous).unwrap(),
+      r#""continuous""#
+    );
+    assert_eq!(
+      serde_json::to_string(&ExposureMode::Locked).unwrap(),
+      r#""locked""#
+    );
+    assert_eq!(
+      serde_json::to_string(&WhiteBalanceMode::Auto).unwrap(),
+      r#""auto""#
+    );
+  }
+
+  #[test]
+  fn deserializes_white_balance_options_with_temperature() {
+    let opts: WhiteBalanceOptions =
+      serde_json::from_str(r#"{"mode":"locked","temperatureK":5000}"#).unwrap();
+    assert_eq!(opts.mode, WhiteBalanceMode::Locked);
+    assert_eq!(opts.temperature_k, Some(5000));
+  }
+
+  #[test]
+  fn serializes_capabilities_with_exposure_and_white_balance() {
+    let caps = CameraCapabilities {
+      exposure_range: Some(ExposureRange {
+        min_ev: -2.0,
+        max_ev: 2.0,
+      }),
+      exposure_modes: Some(vec![ExposureMode::Auto, ExposureMode::Locked]),
+      white_balance_modes: Some(vec![WhiteBalanceMode::Auto, WhiteBalanceMode::Locked]),
+      ..Default::default()
+    };
+    let json = serde_json::to_string(&caps).unwrap();
+    assert!(json.contains(r#""exposureRange":{"minEv":-2.0,"maxEv":2.0}"#));
+    assert!(json.contains(r#""exposureModes":["auto","locked"]"#));
+    assert!(json.contains(r#""whiteBalanceModes":["auto","locked"]"#));
   }
 
   #[test]
@@ -244,6 +370,10 @@ mod tests {
       zoom_range: Some(ZoomRange { min: 1.0, max: 8.0 }),
       supports_focus: false,
       focus_modes: None,
+      exposure_range: None,
+      exposure_modes: None,
+      white_balance_modes: None,
+      supports_white_balance_temperature: None,
       photo_formats: None,
       supports_pause: false,
     };
