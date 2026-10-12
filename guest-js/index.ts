@@ -14,6 +14,8 @@ export type FlashMode = 'on' | 'off' | 'auto'
 
 export interface StartPreviewOptions {
   camera?: CameraDirection
+  /** Specific camera/lens id from `getAvailableCameras()`. Takes precedence over `camera`. */
+  cameraId?: string
   windowed?: boolean
 }
 
@@ -180,12 +182,14 @@ function stopProgressTimer(): void {
 async function ensureDesktopStream(options?: StartPreviewOptions): Promise<MediaStream> {
   if (activeStream) return activeStream
 
-  const constraints: MediaStreamConstraints = {
-    video: {
-      facingMode: options?.camera === 'front' ? 'user' : 'environment'
-    },
-    audio: false
+  const videoConstraints: MediaTrackConstraints = {}
+  if (options?.cameraId) {
+    videoConstraints.deviceId = { exact: options.cameraId }
+  } else {
+    videoConstraints.facingMode = options?.camera === 'front' ? 'user' : 'environment'
   }
+
+  const constraints: MediaStreamConstraints = { video: videoConstraints, audio: false }
 
   const stream = await navigator.mediaDevices.getUserMedia(constraints)
   activeStream = stream

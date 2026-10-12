@@ -106,4 +106,10 @@ final class CameraPluginTests: XCTestCase {
       ["auto", "continuous"]
     )
   }
+
+  func testResolveCameraId() throws {
+    XCTAssertNil(try resolveCameraId(availableIds: ["a"], requested: nil))
+    XCTAssertEqual(try resolveCameraId(availableIds: ["a", "b"], requested: "b"), "b")
+    XCTAssertThrowsError(try resolveCameraId(availableIds: ["a"], requested: "z"))
+  }
 }

@@ -85,6 +85,12 @@
       updateLog(cameras)
       if (cameras.length > 0) {
         updateLog(await getCapabilities(cameras[0].id))
+        await startPreview({ cameraId: cameras[0].id, windowed: true })
+        updateLog(`preview started with cameraId=${cameras[0].id}`)
+        if (!isMobile()) {
+          const stream = await getPreviewStream()
+          if (stream && videoEl) videoEl.srcObject = stream
+        }
       }
     } catch (e) { updateLog(e) }
   }
@@ -118,7 +124,7 @@
   <div class="row">
     <button onclick={_check}>Check Permissions</button>
     <button onclick={_request}>Request Permissions</button>
-    <button onclick={_cameras}>Cameras &amp; Capabilities</button>
+    <button onclick={_cameras}>Cameras &amp; Start Lens</button>
   </div>
 
   {#if photoSrc}

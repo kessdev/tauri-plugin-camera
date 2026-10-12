@@ -40,7 +40,6 @@ import androidx.camera.video.VideoRecordEvent
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
-import app.tauri.Logger
 import app.tauri.PermissionState
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
@@ -55,7 +54,6 @@ import app.tauri.plugin.Plugin
 import com.google.common.util.concurrent.ListenableFuture
 import java.io.ByteArrayOutputStream
 import java.io.File
-import java.util.concurrent.ExecutionException
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -65,6 +63,7 @@ private const val PERMISSION_ALIAS_AUDIO = "microphone"
 @InvokeArg
 class StartPreviewOptions {
   var camera: String? = null
+  var cameraId: String? = null
   var windowed: Boolean = false
 }
 
@@ -153,7 +152,7 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
   // Preview
   // -------------------------------------------------------------------------
 
-  private fun setupCamera(direction: String, windowed: Boolean) {
+  private fun setupCamera(direction: String, cameraId: String?, windowed: Boolean, invoke: Invoke) {
     activity.runOnUiThread {
       val previewView = PreviewView(activity)
       previewView.layoutParams = FrameLayout.LayoutParams(
@@ -177,15 +176,12 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
         {
           try {
             val provider = future.get()
-            bindUseCases(
-              provider,
-              if (direction == "front") CameraSelector.LENS_FACING_FRONT else CameraSelector.LENS_FACING_BACK
-            )
+            val selector = buildSelector(provider, cameraId, direction)
+            bindUseCases(provider, selector)
             this.cameraProvider = provider
-          } catch (e: InterruptedException) {
-            // ignored
-          } catch (_: ExecutionException) {
-            // ignored
+            invoke.resolve()
+          } catch (e: Exception) {
+            invoke.reject(e.message ?: "Failed to start camera preview")
           }
         },
         ContextCompat.getMainExecutor(activity)
@@ -194,9 +190,29 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
     }
   }
 
-  private fun bindUseCases(provider: ProcessCameraProvider, lensFacing: Int) {
-    val cameraSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
+  private fun buildSelector(
+    provider: ProcessCameraProvider,
+    cameraId: String?,
+    direction: String
+  ): CameraSelector {
+    if (cameraId != null) {
+      val availableIds = provider.availableCameraInfos.map { Camera2CameraInfo.from(it).cameraId }
+      CameraMath.resolveCameraId(availableIds, cameraId)
+      return CameraSelector.Builder()
+        .addCameraFilter { infos ->
+          infos.filter { Camera2CameraInfo.from(it).cameraId == cameraId }
+        }
+        .build()
+    }
+    val facing = if (direction == "front") {
+      CameraSelector.LENS_FACING_FRONT
+    } else {
+      CameraSelector.LENS_FACING_BACK
+    }
+    return CameraSelector.Builder().requireLensFacing(facing).build()
+  }
 
+  private fun bindUseCases(provider: ProcessCameraProvider, cameraSelector: CameraSelector) {
     val preview = Preview.Builder().build()
     preview.setSurfaceProvider(previewView?.surfaceProvider)
 
@@ -211,18 +227,14 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
     val videoCapture = VideoCapture.withOutput(recorder)
     this.videoCapture = videoCapture
 
-    try {
-      camera = provider.bindToLifecycle(
-        activity as LifecycleOwner,
-        cameraSelector,
-        preview,
-        imageCapture,
-        videoCapture
-      )
-      currentLensFacing = lensFacing
-    } catch (e: Exception) {
-      Logger.error(e.message ?: e.toString())
-    }
+    camera = provider.bindToLifecycle(
+      activity as LifecycleOwner,
+      cameraSelector,
+      preview,
+      imageCapture,
+      videoCapture
+    )
+    currentLensFacing = camera?.cameraInfo?.lensFacing ?: currentLensFacing
   }
 
   private fun dismantleCamera() {
@@ -266,8 +278,7 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
       return
     }
     dismantleCamera()
-    setupCamera(args.camera ?: "back", args.windowed)
-    invoke.resolve()
+    setupCamera(args.camera ?: "back", args.cameraId, args.windowed, invoke)
   }
 
   @Command
@@ -402,8 +413,12 @@ class CameraPlugin(private val activity: Activity) : Plugin(activity) {
       CameraSelector.LENS_FACING_BACK
     }
     activity.runOnUiThread {
-      bindUseCases(provider, nextFacing)
-      invoke.resolve()
+      try {
+        bindUseCases(provider, CameraSelector.Builder().requireLensFacing(nextFacing).build())
+        invoke.resolve()
+      } catch (e: Exception) {
+        invoke.reject(e.message ?: "Failed to flip camera")
+      }
     }
   }
 

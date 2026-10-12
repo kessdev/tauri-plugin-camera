@@ -149,6 +149,10 @@ import {
 // windowed: true keeps the webview transparent so your UI renders over the camera.
 await startPreview({ camera: 'back', windowed: true })
 
+// Or pick a specific lens by id (from getAvailableCameras()); cameraId takes precedence.
+const cameras = await getAvailableCameras()
+await startPreview({ cameraId: cameras[0].id })
+
 // Desktop: attach the stream to a <video> element.
 const stream = await getPreviewStream()
 if (stream) videoEl.srcObject = stream

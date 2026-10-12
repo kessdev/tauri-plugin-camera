@@ -118,4 +118,15 @@ class CameraPluginTest {
     assertEquals(24f, CameraMath.toEquivalentFocalLength(4.8f, 7.2f)!!, 1e-4f)
     assertEquals(null, CameraMath.toEquivalentFocalLength(4.8f, 0f))
   }
+
+  @Test
+  fun resolveCameraIdReturnsRequestedWhenPresent() {
+    assertEquals("1", CameraMath.resolveCameraId(listOf("0", "1"), "1"))
+    assertEquals(null, CameraMath.resolveCameraId(listOf("0"), null))
+  }
+
+  @Test(expected = IllegalArgumentException::class)
+  fun resolveCameraIdThrowsWhenMissing() {
+    CameraMath.resolveCameraId(listOf("0"), "9")
+  }
 }

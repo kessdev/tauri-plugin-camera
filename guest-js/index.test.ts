@@ -64,9 +64,10 @@ describe('mobile dispatch', () => {
 
   it('startPreview invokes the mobile command', async () => {
     invokeMock.mockResolvedValue(undefined)
-    await startPreview({ camera: 'front', windowed: true })
+    await startPreview({ camera: 'front', cameraId: 'lens-2', windowed: true })
     expect(invokeMock).toHaveBeenCalledWith('plugin:camera-kessdev|start_preview', {
       camera: 'front',
+      cameraId: 'lens-2',
       windowed: true
     })
   })
@@ -219,6 +220,25 @@ describe('desktop introspection', () => {
     expect(caps.hasTorch).toBe(true)
     expect(caps.supportsFocus).toBe(true)
     expect(caps.focusModes).toEqual(['continuous', 'locked'])
+  })
+
+  it('startPreview selects a camera by deviceId on desktop', async () => {
+    const track = { stop: vi.fn() }
+    const stream = { getTracks: () => [track], getVideoTracks: () => [track] }
+    const getUserMedia = vi.fn().mockResolvedValue(stream)
+    vi.stubGlobal('navigator', {
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+      mediaDevices: { getUserMedia }
+    })
+    vi.stubGlobal('document', {
+      createElement: () => ({ muted: false, playsInline: false, play: vi.fn().mockResolvedValue(undefined) })
+    })
+
+    await startPreview({ cameraId: 'cam2' })
+    expect(getUserMedia).toHaveBeenCalledWith({
+      video: { deviceId: { exact: 'cam2' } },
+      audio: false
+    })
   })
 })
 

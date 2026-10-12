@@ -8,6 +8,7 @@ import WebKit
 
 struct StartPreviewOptions: Decodable {
   var camera: String?
+  var cameraId: String?
   var windowed: Bool?
 }
 
@@ -112,6 +113,15 @@ func makeRecordingProgress(duration: Double, bytesRecorded: Int64) -> RecordingP
 enum CaptureError: Error {
   case cameraUnavailable
   case couldNotConfigureInput
+  case cameraIdUnavailable(String)
+}
+
+/// Returns the requested camera id if present among the available ids; nil when no
+/// id was requested; throws when the id is not available.
+func resolveCameraId(availableIds: [String], requested: String?) throws -> String? {
+  guard let requested = requested else { return nil }
+  if availableIds.contains(requested) { return requested }
+  throw CaptureError.cameraIdUnavailable(requested)
 }
 
 class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRecordingDelegate {
@@ -159,7 +169,7 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
     return discoverySession.devices
   }
 
-  private func setupSession(direction: String, windowed: Bool) throws {
+  private func setupSession(direction: String, cameraId: String?, windowed: Bool) throws {
     if windowed {
       webView.superview?.insertSubview(cameraView, belowSubview: webView)
     } else {
@@ -171,11 +181,20 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
       else if device.position == .front { frontCamera = device }
     }
 
-    var selected = direction
-    if selected == "back" && backCamera == nil { selected = "front" }
-    if selected == "front" && frontCamera == nil { selected = "back" }
-
-    guard let cameraDevice = selected == "front" ? frontCamera : backCamera else {
+    let cameraDevice: AVCaptureDevice?
+    let availableIds = availableLenses().map { $0.uniqueID }
+    if let resolvedId = try resolveCameraId(availableIds: availableIds, requested: cameraId) {
+      cameraDevice = AVCaptureDevice(uniqueID: resolvedId)
+      if cameraDevice == nil {
+        throw CaptureError.cameraIdUnavailable(resolvedId)
+      }
+    } else {
+      var selected = direction
+      if selected == "back" && backCamera == nil { selected = "front" }
+      if selected == "front" && frontCamera == nil { selected = "back" }
+      cameraDevice = selected == "front" ? frontCamera : backCamera
+    }
+    guard let cameraDevice = cameraDevice else {
       throw CaptureError.cameraUnavailable
     }
     currentCamera = cameraDevice
@@ -267,8 +286,7 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
   @objc private func startPreview(_ invoke: Invoke) throws {
     let args = try invoke.parseArgs(StartPreviewOptions.self)
 
-    let availableDevices = discoverCaptureDevices()
-    if availableDevices.isEmpty {
+    if availableLenses().isEmpty {
       invoke.reject("No camera available on this device (e.g., iOS Simulator)")
       return
     }
@@ -282,7 +300,8 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
       self.loadCamera()
       self.dismantleCamera()
       do {
-        try self.setupSession(direction: args.camera ?? "back", windowed: args.windowed ?? false)
+        try self.setupSession(
+          direction: args.camera ?? "back", cameraId: args.cameraId, windowed: args.windowed ?? false)
         self.captureSession?.startRunning()
         invoke.resolve()
       } catch {
@@ -376,7 +395,7 @@ class CameraPlugin: Plugin, AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRe
     DispatchQueue.main.async { [self] in
       self.dismantleCamera()
       do {
-        try self.setupSession(direction: newDirection, windowed: self.windowed)
+        try self.setupSession(direction: newDirection, cameraId: nil, windowed: self.windowed)
         self.captureSession?.startRunning()
         invoke.resolve()
       } catch {

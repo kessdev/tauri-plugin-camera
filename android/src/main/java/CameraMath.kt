@@ -71,6 +71,16 @@ internal object CameraMath {
   fun toEquivalentFocalLength(focalMm: Float, sensorWidthMm: Float): Float? =
     if (focalMm > 0f && sensorWidthMm > 0f) focalMm * 36f / sensorWidthMm else null
 
+  /**
+   * Resolves a requested camera id against the available ids. Returns null when no
+   * id was requested, the id when present, or throws when it is not available.
+   */
+  fun resolveCameraId(availableIds: List<String>, requested: String?): String? {
+    if (requested == null) return null
+    if (requested in availableIds) return requested
+    throw IllegalArgumentException("No camera available for cameraId: $requested")
+  }
+
   private val VIDEO_EXTENSIONS = setOf("mp4", "mov", "m4v", "webm", "3gp", "mkv")
 
   /** Infers the media kind ("image" | "video") from the path, honoring an override. */

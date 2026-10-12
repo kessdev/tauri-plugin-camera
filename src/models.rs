@@ -19,6 +19,7 @@ pub enum FlashMode {
 #[serde(rename_all = "camelCase")]
 pub struct StartPreviewOptions {
   pub camera: Option<CameraDirection>,
+  pub camera_id: Option<String>,
   pub windowed: Option<bool>,
 }
 
@@ -143,7 +144,16 @@ mod tests {
     let opts: StartPreviewOptions =
       serde_json::from_str(r#"{"camera":"front","windowed":true}"#).unwrap();
     assert_eq!(opts.camera, Some(CameraDirection::Front));
+    assert_eq!(opts.camera_id, None);
     assert_eq!(opts.windowed, Some(true));
+  }
+
+  #[test]
+  fn deserializes_start_preview_camera_id() {
+    let opts: StartPreviewOptions =
+      serde_json::from_str(r#"{"cameraId":"lens-2","camera":"back"}"#).unwrap();
+    assert_eq!(opts.camera_id.as_deref(), Some("lens-2"));
+    assert_eq!(opts.camera, Some(CameraDirection::Back));
   }
 
   #[test]
