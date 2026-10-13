@@ -198,6 +198,11 @@ const withThumbnail = await stopRecording({ thumbnail: true })
 await startRecording({ quality: 'fhd', fps: 30, bitrate: 2_000_000 }) // quality: 'sd' | 'hd' | 'fhd' | 'uhd'
 ```
 
+On desktop the preview stays alive during recording: the recording reuses the
+preview's video track (only the microphone is acquired separately), so the
+`<video>` element bound to `getPreviewStream()` keeps playing. The recording
+mime type is chosen from the browser's supported types (WebM or MP4).
+
 ### Video thumbnail
 
 Pass `{ thumbnail: true }` to `stopRecording()` to include a base64-encoded JPEG

@@ -48,7 +48,29 @@ jobs:
         with:
           command: 'version-or-publish'
           token: ${{ secrets.GITHUB_TOKEN }}
-          createRelease: true
+          # Disabled: the covector action crashes while serializing the injected
+          # createReleases generator function to YAML ("Tag not resolved for
+          # GeneratorFunction value"). Releases are created in the step below.
+          createRelease: 'false'
+
+      - name: create GitHub releases
+        if: steps.covector.outputs.commandRan == 'publish' && steps.covector.outputs.successfulPublish == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          RUST_VERSION="$(grep -m1 '^version' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')"
+          JS_VERSION="$(node -p "require('./package.json').version")"
+          SHA="$(git rev-parse HEAD)"
+          for entry in "tauri-plugin-camera-kessdev:${RUST_VERSION}" "tauri-plugin-camera-kessdev-js:${JS_VERSION}"; do
+            pkg="${entry%%:*}"; version="${entry##*:}"
+            tag="${pkg}-v${version}"
+            if gh release view "$tag" >/dev/null 2>&1; then
+              echo "release $tag already exists"
+            else
+              gh release create "$tag" --title "$pkg v$version" --target "$SHA" --notes "Automated release for $pkg v$version" || echo "failed to create release $tag"
+            fi
+          done
 
       - name: create pull request
         if: steps.covector.outputs.commandRan == 'version'

@@ -321,11 +321,30 @@ describe('desktop recording telemetry', () => {
     vi.spyOn(performance, 'now').mockImplementation(() => clock)
     MockMediaRecorder.instances = []
 
-    const stream = { getTracks: () => [{ stop: vi.fn() }] }
+    function fakeStream(): unknown {
+      const video = { stop: vi.fn(), kind: 'video' }
+      const audio = { stop: vi.fn(), kind: 'audio' }
+      return {
+        getTracks: () => [video, audio],
+        getVideoTracks: () => [video],
+        getAudioTracks: () => [audio]
+      }
+    }
     vi.stubGlobal('navigator', {
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-      mediaDevices: { getUserMedia: vi.fn().mockResolvedValue(stream) }
+      mediaDevices: {
+        getUserMedia: vi.fn().mockImplementation(() => Promise.resolve(fakeStream()))
+      }
     })
+    vi.stubGlobal(
+      'MediaStream',
+      class {
+        tracks: unknown[]
+        constructor(tracks: unknown[] = []) {
+          this.tracks = tracks
+        }
+      }
+    )
     vi.stubGlobal('document', {
       createElement: (tag: string) => {
         if (tag === 'canvas') {
@@ -349,7 +368,8 @@ describe('desktop recording telemetry', () => {
     vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(() => 'blob:mock') })
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    await stopPreview()
     vi.useRealTimers()
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
@@ -415,9 +435,22 @@ describe('desktop recording telemetry', () => {
     await startRecording({ quality: 'fhd', fps: 30, bitrate: 2000000 })
     expect(getUserMedia).toHaveBeenCalledWith({
       video: { height: { ideal: 1080 }, frameRate: { ideal: 30 } },
-      audio: true
+      audio: false
     })
+    expect(getUserMedia).toHaveBeenCalledWith({ audio: true })
     expect(MockMediaRecorder.instances[0].options).toEqual({ videoBitsPerSecond: 2000000 })
+    await stopRecording()
+  })
+
+  it('omits bytesRecorded until a chunk arrives', async () => {
+    const channel = fakeChannel()
+    await startRecording({ onProgress: channel as unknown as Channel<RecordingProgress> })
+    clock = 250
+    vi.advanceTimersByTime(250)
+
+    const first = channel.onmessage.mock.calls[0][0]
+    expect(first.bytesRecorded).toBeUndefined()
+    expect(first.bitrate).toBeUndefined()
     await stopRecording()
   })
 })
