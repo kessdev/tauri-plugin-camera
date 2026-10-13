@@ -139,7 +139,12 @@ jobs:
       - name: run Swift tests on iOS Simulator
         working-directory: ios
         run: |
-          xcodebuild -list -json
+          for attempt in 1 2 3; do
+            if xcodebuild -list -json; then break; fi
+            echo "SwiftPM resolution failed (attempt $attempt); clearing cache and retrying"
+            rm -rf "$HOME/Library/Caches/org.swift.swiftpm" "$HOME/Library/org.swift.swiftpm" || true
+            sleep 10
+          done
           SCHEME="$(xcodebuild -list -json | python3 -c "import json,sys; d=json.load(sys.stdin); r=d.get('workspace') or d.get('project') or {}; s=r.get('schemes') or []; print(s[0] if s else '')")"
           SIM="$(xcrun simctl list devices available | grep -m1 -E '^[[:space:]]+iPhone' | sed -E 's/^[[:space:]]+//; s/ \(.*//')"
           echo "scheme=$SCHEME simulator=$SIM"
