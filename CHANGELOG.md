@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0-beta.2]
+
+- [`89fb9ce`](https://github.com/kessdev/tauri-plugin-camera/commit/89fb9ce8ea81c480d8f00f2740a80422cec62f40) Fix desktop video recording: keep the preview stream alive (reuse its video
+    track instead of stopping it), pick an explicit supported recording mime type
+    instead of falling back to WebM, and omit `bytesRecorded`/`bitrate` telemetry
+    until a real chunk arrives.
+
 ## [0.2.0-beta.1]
 
 - [`3852d23`](https://github.com/kessdev/tauri-plugin-camera/commit/3852d23b084ba635cfe7f5d2719144b05c8b4d16) Add fine camera controls: torch (continuous light), tap-to-focus and focus mode,
