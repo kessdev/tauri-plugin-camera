@@ -199,6 +199,7 @@ function isMobile(): boolean {
 let activeStream: MediaStream | null = null
 let activeVideo: HTMLVideoElement | null = null
 let mediaRecorder: MediaRecorder | null = null
+let recordingAudioStream: MediaStream | null = null
 let recordedChunks: Blob[] = []
 let recordedBytes = 0
 let recordingStartedAt = 0
@@ -209,10 +210,29 @@ const RECORDING_PROGRESS_INTERVAL_MS = 250
 /** Ask MediaRecorder for data chunks at least this often so size is known live. */
 const RECORDING_TIMESLICE_MS = 1000
 
+/** Picks an explicit recording mime type supported by this browser, if any. */
+function pickDesktopRecordingMimeType(): string | undefined {
+  if (typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function') {
+    return undefined
+  }
+  const candidates = [
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm',
+    'video/mp4'
+  ]
+  return candidates.find((type) => MediaRecorder.isTypeSupported(type))
+}
+
 function buildRecordingProgress(duration: number, bytes: number): RecordingProgress {
-  const progress: RecordingProgress = { duration, bytesRecorded: bytes }
-  if (duration > 0) {
-    progress.bitrate = Math.round((bytes * 8) / duration)
+  // Omit the size-derived fields until a real chunk has arrived, matching the
+  // mobile backends (do not report a misleading 0).
+  const progress: RecordingProgress = { duration }
+  if (bytes > 0) {
+    progress.bytesRecorded = bytes
+    if (duration > 0) {
+      progress.bitrate = Math.round((bytes * 8) / duration)
+    }
   }
   return progress
 }
@@ -264,6 +284,8 @@ function teardownDesktopStream(): void {
     mediaRecorder.stop()
   }
   mediaRecorder = null
+  recordingAudioStream?.getTracks().forEach((t) => t.stop())
+  recordingAudioStream = null
   recordedChunks = []
   recordedBytes = 0
   if (activeStream) {
@@ -600,30 +622,43 @@ export async function startRecording(options?: StartRecordingOptions): Promise<v
     return
   }
 
-  if (activeStream) {
-    activeStream.getTracks().forEach((t) => t.stop())
-    activeStream = null
-    activeVideo = null
+  // Reuse the active preview video track when possible so the preview is not
+  // invalidated (which would freeze the app's <video> element).
+  let videoTrack = activeStream?.getVideoTracks()[0]
+  if (!videoTrack) {
+    const videoConstraints: MediaTrackConstraints = {}
+    if (options?.quality) videoConstraints.height = { ideal: qualityHeight(options.quality) }
+    if (options?.fps) videoConstraints.frameRate = { ideal: options.fps }
+    const videoStream = await navigator.mediaDevices.getUserMedia({
+      video: videoConstraints,
+      audio: false
+    })
+    activeStream = videoStream
+    videoTrack = videoStream.getVideoTracks()[0]
+  }
+  if (!videoTrack) {
+    throw new Error('No video track available for recording.')
   }
 
-  const videoConstraints: MediaTrackConstraints = {}
-  if (options?.quality) videoConstraints.height = { ideal: qualityHeight(options.quality) }
-  if (options?.fps) videoConstraints.frameRate = { ideal: options.fps }
-  const stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: true })
-  activeStream = stream
+  if (!activeVideo) {
+    const video = document.createElement('video')
+    video.muted = true
+    video.playsInline = true
+    video.srcObject = activeStream
+    await video.play()
+    activeVideo = video
+  }
 
-  const video = document.createElement('video')
-  video.muted = true
-  video.playsInline = true
-  video.srcObject = stream
-  await video.play()
-  activeVideo = video
+  recordingAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+  const recordStream = new MediaStream([videoTrack, ...recordingAudioStream.getAudioTracks()])
 
   recordedChunks = []
   recordedBytes = 0
   const recorderOptions: MediaRecorderOptions = {}
   if (options?.bitrate) recorderOptions.videoBitsPerSecond = options.bitrate
-  mediaRecorder = new MediaRecorder(stream, recorderOptions)
+  const mimeType = pickDesktopRecordingMimeType()
+  if (mimeType) recorderOptions.mimeType = mimeType
+  mediaRecorder = new MediaRecorder(recordStream, recorderOptions)
   mediaRecorder.ondataavailable = (event) => {
     if (event.data.size > 0) {
       recordedChunks.push(event.data)
@@ -666,9 +701,12 @@ export async function stopRecording(options?: StopRecordingOptions): Promise<Vid
 
   return await new Promise<Video>((resolve, reject) => {
     mediaRecorder!.onstop = () => {
-      const type = mediaRecorder!.mimeType || 'video/webm'
+      const mimeType = mediaRecorder!.mimeType || 'video/webm'
+      const type = mimeType.split(';')[0]
       const blob = new Blob(recordedChunks, { type })
       const url = URL.createObjectURL(blob)
+      recordingAudioStream?.getTracks().forEach((t) => t.stop())
+      recordingAudioStream = null
       recordedChunks = []
       recordedBytes = 0
       mediaRecorder = null
