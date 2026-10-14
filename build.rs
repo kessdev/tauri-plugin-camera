@@ -20,6 +20,7 @@ const COMMANDS: &[&str] = &[
   "request_permissions",
   "check_permissions",
   "open_app_settings",
+  "native_desktop_available",
 ];
 
 fn main() {

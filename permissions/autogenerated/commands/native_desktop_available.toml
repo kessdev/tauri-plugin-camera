@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-native-desktop-available"
+description = "Enables the native_desktop_available command without any pre-configured scope."
+commands.allow = ["native_desktop_available"]
+
+[[permission]]
+identifier = "deny-native-desktop-available"
+description = "Denies the native_desktop_available command without any pre-configured scope."
+commands.deny = ["native_desktop_available"]

@@ -12,11 +12,24 @@ export { convertFileSrc }
 export type CameraDirection = 'front' | 'back'
 export type FlashMode = 'on' | 'off' | 'auto'
 
+/** A preview frame delivered by the native desktop backend. */
+export interface PreviewFrame {
+  /** Base64-encoded JPEG image data. */
+  data: string
+  width: number
+  height: number
+}
+
 export interface StartPreviewOptions {
   camera?: CameraDirection
   /** Specific camera/lens id from `getAvailableCameras()`. Takes precedence over `camera`. */
   cameraId?: string
   windowed?: boolean
+  /**
+   * Desktop native backend only: receives live preview frames to render in a
+   * `<canvas>`. Ignored by the webview fallback and on mobile.
+   */
+  onFrame?: Channel<PreviewFrame>
 }
 
 export type PhotoFormat = 'jpeg' | 'png' | 'heif'
@@ -137,6 +150,8 @@ export interface CameraCapabilities {
   whiteBalanceModes?: WhiteBalanceMode[]
   /** Whether an arbitrary color temperature (Kelvin) can be applied. */
   supportsWhiteBalanceTemperature?: boolean
+  /** Whether the native desktop camera backend is available (desktop). */
+  supportsNativeRecording?: boolean
   photoResolutions?: Resolution[]
   photoAspects?: string[]
   videoQualities?: VideoQuality[]
@@ -538,6 +553,13 @@ export async function getAvailableCameras(): Promise<CameraInfo[]> {
   return enumerateDesktopCameras()
 }
 
+/** Whether the native desktop camera backend is available for this build. */
+function nativeDesktopAvailable(): Promise<boolean> {
+  return Promise.resolve(invoke<boolean>('plugin:camera-kessdev|native_desktop_available'))
+    .then((value) => value === true)
+    .catch(() => false)
+}
+
 /**
  * Returns the declarative capabilities of a camera.
  *
@@ -550,7 +572,9 @@ export async function getCapabilities(cameraId?: string): Promise<CameraCapabili
   if (isMobile()) {
     return await invoke<CameraCapabilities>('plugin:camera-kessdev|get_capabilities', { cameraId })
   }
-  return desktopCapabilities(cameraId)
+  const caps = desktopCapabilities(cameraId)
+  caps.supportsNativeRecording = await nativeDesktopAvailable()
+  return caps
 }
 
 // ---------------------------------------------------------------------------

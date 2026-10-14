@@ -22,4 +22,5 @@ permissions = [
   "allow-request-permissions",
   "allow-check-permissions",
   "allow-open-app-settings",
+  "allow-native-desktop-available",
 ]

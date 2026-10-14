@@ -265,6 +265,14 @@ describe('desktop introspection', () => {
     expect(caps.focusModes).toEqual(['continuous', 'locked'])
   })
 
+  it('reports native backend availability in capabilities', async () => {
+    await stopPreview()
+    invokeMock.mockResolvedValue(true)
+    const caps = await getCapabilities()
+    expect(invokeMock).toHaveBeenCalledWith('plugin:camera-kessdev|native_desktop_available')
+    expect(caps.supportsNativeRecording).toBe(true)
+  })
+
   it('startPreview selects a camera by deviceId on desktop', async () => {
     const track = { stop: vi.fn() }
     const stream = { getTracks: () => [track], getVideoTracks: () => [track] }

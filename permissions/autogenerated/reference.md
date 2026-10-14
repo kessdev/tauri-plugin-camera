@@ -25,6 +25,7 @@ Default permissions for the camera plugin
 - `allow-request-permissions`
 - `allow-check-permissions`
 - `allow-open-app-settings`
+- `allow-native-desktop-available`
 
 ## Permission Table
 
@@ -187,6 +188,32 @@ Enables the get_zoom command without any pre-configured scope.
 <td>
 
 Denies the get_zoom command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`camera-kessdev:allow-native-desktop-available`
+
+</td>
+<td>
+
+Enables the native_desktop_available command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`camera-kessdev:deny-native-desktop-available`
+
+</td>
+<td>
+
+Denies the native_desktop_available command without any pre-configured scope.
 
 </td>
 </tr>

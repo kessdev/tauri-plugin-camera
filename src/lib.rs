@@ -37,7 +37,7 @@ impl<R: Runtime, T: Manager<R>> crate::CameraExt<R> for T {
 
 /// Initializes the plugin.
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
-  Builder::new("camera-kessdev")
+  let builder = Builder::new("camera-kessdev")
     .setup(|app, api| {
       #[cfg(mobile)]
       let camera = mobile::init(app, api)?;
@@ -51,6 +51,10 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
       desktop_permissions::install(&webview);
       #[cfg(not(desktop))]
       let _ = webview;
-    })
-    .build()
+    });
+
+  #[cfg(desktop)]
+  let builder = builder.invoke_handler(tauri::generate_handler![desktop::native_desktop_available]);
+
+  builder.build()
 }
