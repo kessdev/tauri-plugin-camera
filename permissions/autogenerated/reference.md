@@ -26,6 +26,10 @@ Default permissions for the camera plugin
 - `allow-check-permissions`
 - `allow-open-app-settings`
 - `allow-native-desktop-available`
+- `allow-native-start-preview`
+- `allow-native-stop-preview`
+- `allow-native-start-recording`
+- `allow-native-stop-recording`
 
 ## Permission Table
 
@@ -214,6 +218,110 @@ Enables the native_desktop_available command without any pre-configured scope.
 <td>
 
 Denies the native_desktop_available command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`camera-kessdev:allow-native-start-preview`
+
+</td>
+<td>
+
+Enables the native_start_preview command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`camera-kessdev:deny-native-start-preview`
+
+</td>
+<td>
+
+Denies the native_start_preview command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`camera-kessdev:allow-native-start-recording`
+
+</td>
+<td>
+
+Enables the native_start_recording command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`camera-kessdev:deny-native-start-recording`
+
+</td>
+<td>
+
+Denies the native_start_recording command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`camera-kessdev:allow-native-stop-preview`
+
+</td>
+<td>
+
+Enables the native_stop_preview command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`camera-kessdev:deny-native-stop-preview`
+
+</td>
+<td>
+
+Denies the native_stop_preview command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`camera-kessdev:allow-native-stop-recording`
+
+</td>
+<td>
+
+Enables the native_stop_recording command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`camera-kessdev:deny-native-stop-recording`
+
+</td>
+<td>
+
+Denies the native_stop_recording command without any pre-configured scope.
 
 </td>
 </tr>

@@ -203,6 +203,33 @@ preview's video track (only the microphone is acquired separately), so the
 `<video>` element bound to `getPreviewStream()` keeps playing. The recording
 mime type is chosen from the browser's supported types (WebM or MP4).
 
+### Desktop native backend (feature `native-desktop`)
+
+By default the desktop camera runs in the webview (`getUserMedia` / `MediaRecorder`).
+Compiling the plugin with the optional Cargo feature `native-desktop` (Linux/GStreamer
+today) makes the plugin **own the camera natively**: it captures once and fans out to a
+**live preview** (JPEG frames delivered to your app) and a **native encoder** — so the
+UI is never blocked and `stopRecording()` does not freeze the window (the WebKitGTK
+problem). Query availability with `getCapabilities().supportsNativeRecording`.
+
+```ts
+import type { Channel } from '@tauri-apps/api/core'
+import { startPreview, startRecording, stopRecording, type PreviewFrame } from 'tauri-plugin-camera-kessdev'
+
+const frames = new Channel<PreviewFrame>()
+frames.onmessage = ({ data }) => drawToCanvas(data) // base64 JPEG
+await startPreview({ onFrame: frames })
+await startRecording()
+// ... user records ...
+const video = await stopRecording() // { path, duration }
+```
+
+- Enabling the feature requires the platform dev libraries: on Linux,
+  `libgstreamer1.0-dev` and `libgstreamer-plugins-base1.0-dev` (plus runtime plugins
+  for `pipewiresrc`, `x264enc`, `mp4mux` and AAC).
+- With the native backend active, `getPreviewStream()` returns `null` (there is no
+  webview `MediaStream`); render the frames in a `<canvas>` instead.
+
 ### Video thumbnail
 
 Pass `{ thumbnail: true }` to `stopRecording()` to include a base64-encoded JPEG
@@ -504,7 +531,8 @@ type PhotoFormat = 'jpeg' | 'png' | 'heif'
 type VideoQuality = 'sd' | 'hd' | 'fhd' | 'uhd'
 type PermissionState = 'granted' | 'denied' | 'prompt'  // re-exported from @tauri-apps/api/core
 
-interface StartPreviewOptions { camera?: CameraDirection; cameraId?: string; windowed?: boolean }
+interface StartPreviewOptions { camera?: CameraDirection; cameraId?: string; windowed?: boolean; onFrame?: Channel<PreviewFrame> }
+interface PreviewFrame { data: string; width: number; height: number }
 interface CaptureOptions {
   flash?: FlashMode
   resolution?: Resolution
@@ -555,6 +583,7 @@ interface CameraCapabilities {
   exposureModes?: ExposureMode[]
   whiteBalanceModes?: WhiteBalanceMode[]
   supportsWhiteBalanceTemperature?: boolean
+  supportsNativeRecording?: boolean
   photoResolutions?: Resolution[]
   photoAspects?: string[]
   videoQualities?: VideoQuality[]

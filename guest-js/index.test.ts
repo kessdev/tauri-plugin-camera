@@ -532,3 +532,40 @@ describe('desktop capture config', () => {
     await expect(capture({ format: 'heif' })).rejects.toThrow(/not supported on desktop/)
   })
 })
+
+describe('desktop native backend', () => {
+  beforeEach(() => {
+    setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64)')
+  })
+
+  afterEach(async () => {
+    await stopPreview()
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('startPreview with onFrame uses the native command when available', async () => {
+    invokeMock.mockResolvedValueOnce(true) // native_desktop_available
+    invokeMock.mockResolvedValueOnce(undefined) // native_start_preview
+    const channel = { onmessage: vi.fn() } as unknown as Channel<unknown>
+
+    await startPreview({ onFrame: channel as never })
+
+    expect(invokeMock).toHaveBeenNthCalledWith(1, 'plugin:camera-kessdev|native_desktop_available')
+    expect(invokeMock).toHaveBeenNthCalledWith(2, 'plugin:camera-kessdev|native_start_preview', {
+      onFrame: channel
+    })
+  })
+
+  it('startRecording/stopRecording use the native commands when available', async () => {
+    invokeMock.mockResolvedValueOnce(true) // native_desktop_available
+    invokeMock.mockResolvedValueOnce('/tmp/rec.mp4') // native_start_recording
+    await startRecording()
+    expect(invokeMock).toHaveBeenNthCalledWith(2, 'plugin:camera-kessdev|native_start_recording', {})
+
+    invokeMock.mockResolvedValueOnce(undefined) // native_stop_recording
+    const video = await stopRecording()
+    expect(invokeMock).toHaveBeenCalledWith('plugin:camera-kessdev|native_stop_recording')
+    expect(video.path).toBe('/tmp/rec.mp4')
+  })
+})

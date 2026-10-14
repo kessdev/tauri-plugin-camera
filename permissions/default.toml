@@ -23,4 +23,8 @@ permissions = [
   "allow-check-permissions",
   "allow-open-app-settings",
   "allow-native-desktop-available",
+  "allow-native-start-preview",
+  "allow-native-stop-preview",
+  "allow-native-start-recording",
+  "allow-native-stop-recording",
 ]

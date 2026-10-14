@@ -21,6 +21,10 @@ const COMMANDS: &[&str] = &[
   "check_permissions",
   "open_app_settings",
   "native_desktop_available",
+  "native_start_preview",
+  "native_stop_preview",
+  "native_start_recording",
+  "native_stop_recording",
 ];
 
 fn main() {

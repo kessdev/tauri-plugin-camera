@@ -215,6 +215,7 @@ let activeStream: MediaStream | null = null
 let activeVideo: HTMLVideoElement | null = null
 let mediaRecorder: MediaRecorder | null = null
 let recordingAudioStream: MediaStream | null = null
+let nativeRecordingPath: string | null = null
 let recordedChunks: Blob[] = []
 let recordedBytes = 0
 let recordingStartedAt = 0
@@ -397,6 +398,10 @@ export async function startPreview(options?: StartPreviewOptions): Promise<void>
     await invoke('plugin:camera-kessdev|start_preview', { ...options })
     return
   }
+  if (options?.onFrame && (await nativeDesktopAvailable())) {
+    await invoke('plugin:camera-kessdev|native_start_preview', { onFrame: options.onFrame })
+    return
+  }
   await ensureDesktopStream(options)
 }
 
@@ -406,15 +411,21 @@ export async function stopPreview(): Promise<void> {
     await invoke('plugin:camera-kessdev|stop_preview')
     return
   }
+  if (await nativeDesktopAvailable()) {
+    await invoke('plugin:camera-kessdev|native_stop_preview')
+  }
   teardownDesktopStream()
 }
 
 /**
  * Returns the active desktop preview stream so the application can render it in
- * a `<video>` element. Returns `null` on mobile (the native preview is used).
+ * a `<video>` element. Returns `null` on mobile, and on desktop when the native
+ * camera backend is active (use `startPreview({ onFrame })` + a `<canvas>`
+ * instead).
  */
 export async function getPreviewStream(): Promise<MediaStream | null> {
   if (isMobile()) return null
+  if (await nativeDesktopAvailable()) return null
   return activeStream
 }
 
@@ -646,6 +657,11 @@ export async function startRecording(options?: StartRecordingOptions): Promise<v
     return
   }
 
+  if (await nativeDesktopAvailable()) {
+    nativeRecordingPath = await invoke<string>('plugin:camera-kessdev|native_start_recording', {})
+    return
+  }
+
   // Reuse the active preview video track when possible so the preview is not
   // invalidated (which would freeze the app's <video> element).
   let videoTrack = activeStream?.getVideoTracks()[0]
@@ -713,6 +729,13 @@ export async function startRecording(options?: StartRecordingOptions): Promise<v
 export async function stopRecording(options?: StopRecordingOptions): Promise<Video> {
   if (isMobile()) {
     return await invoke<Video>('plugin:camera-kessdev|stop_recording', { ...options })
+  }
+
+  if (nativeRecordingPath) {
+    const path = nativeRecordingPath
+    nativeRecordingPath = null
+    await invoke('plugin:camera-kessdev|native_stop_recording')
+    return { path, duration: 0 }
   }
 
   if (!mediaRecorder) {
