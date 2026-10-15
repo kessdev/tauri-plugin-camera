@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.0-beta.3]
+
+- [`182a22d`](https://github.com/kessdev/tauri-plugin-camera/commit/182a22d0dc66e7366046e54eab10f49b76944e03) Add an opt-in native desktop camera backend (Cargo feature `native-desktop`,
+    cross-platform GStreamer); it owns the camera and captures once, fanning out to a
+    live preview (JPEG frames delivered to the frontend) and a native encoder, so the UI
+    is not blocked and `stopRecording()` does not freeze. Expose `startPreview({ onFrame })`,
+    the `PreviewFrame` type and `getCapabilities().supportsNativeRecording`.
+
 ## [0.2.0-beta.2]
 
 - [`89fb9ce`](https://github.com/kessdev/tauri-plugin-camera/commit/89fb9ce8ea81c480d8f00f2740a80422cec62f40) Fix desktop video recording: keep the preview stream alive (reuse its video
