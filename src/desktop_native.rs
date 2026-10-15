@@ -1,9 +1,11 @@
-//! Native desktop camera backend (Linux / GStreamer).
+//! Native desktop camera backend (GStreamer, cross-platform).
 //!
 //! Owns the camera and runs everything on GStreamer's own threads so the UI is
 //! never blocked: a live preview pipeline fanning out JPEG frames to the
-//! frontend, and a recording pipeline that encodes to an MP4 file.
-#![cfg(all(target_os = "linux", feature = "native-desktop"))]
+//! frontend, and a recording pipeline that encodes to an MP4 file. GStreamer's
+//! device monitor picks the right OS source (pipewiresrc/v4l2src on Linux,
+//! mfvideosrc/ksvideosrc on Windows, avfvideosrc on macOS).
+#![cfg(all(desktop, feature = "native-desktop"))]
 
 use std::sync::{Arc, Mutex};
 use std::time::Instant;

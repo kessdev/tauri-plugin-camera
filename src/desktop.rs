@@ -7,7 +7,7 @@ pub fn init<R: Runtime, C: DeserializeOwned>(
 ) -> crate::Result<Camera<R>> {
   Ok(Camera {
     app: app.clone(),
-    #[cfg(all(target_os = "linux", feature = "native-desktop"))]
+    #[cfg(feature = "native-desktop")]
     native: crate::desktop_native::NativeCamera::new(),
   })
 }
@@ -21,7 +21,7 @@ pub fn init<R: Runtime, C: DeserializeOwned>(
 pub struct Camera<R: Runtime> {
   #[allow(dead_code)]
   app: AppHandle<R>,
-  #[cfg(all(target_os = "linux", feature = "native-desktop"))]
+  #[cfg(feature = "native-desktop")]
   pub(crate) native: crate::desktop_native::NativeCamera,
 }
 
@@ -31,5 +31,5 @@ pub struct Camera<R: Runtime> {
 /// fallback (`getCapabilities().supportsNativeRecording`).
 #[tauri::command]
 pub fn native_desktop_available() -> bool {
-  cfg!(all(target_os = "linux", feature = "native-desktop"))
+  cfg!(feature = "native-desktop")
 }

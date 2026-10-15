@@ -7,7 +7,7 @@ pub use models::*;
 
 #[cfg(desktop)]
 mod desktop;
-#[cfg(all(target_os = "linux", feature = "native-desktop"))]
+#[cfg(all(desktop, feature = "native-desktop"))]
 mod desktop_native;
 #[cfg(mobile)]
 mod mobile;
@@ -55,7 +55,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
       let _ = webview;
     });
 
-  #[cfg(all(target_os = "linux", feature = "native-desktop"))]
+  #[cfg(all(desktop, feature = "native-desktop"))]
   let builder = builder.invoke_handler(tauri::generate_handler![
     desktop::native_desktop_available,
     desktop_native::native_start_preview,
@@ -65,7 +65,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
     desktop_native::native_capture
   ]);
 
-  #[cfg(all(desktop, not(all(target_os = "linux", feature = "native-desktop"))))]
+  #[cfg(all(desktop, not(feature = "native-desktop")))]
   let builder = builder.invoke_handler(tauri::generate_handler![desktop::native_desktop_available]);
 
   builder.build()

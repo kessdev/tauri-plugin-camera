@@ -206,8 +206,8 @@ mime type is chosen from the browser's supported types (WebM or MP4).
 ### Desktop native backend (feature `native-desktop`)
 
 By default the desktop camera runs in the webview (`getUserMedia` / `MediaRecorder`).
-Compiling the plugin with the optional Cargo feature `native-desktop` (Linux/GStreamer
-today) makes the plugin **own the camera natively**: it captures once and fans out to a
+Compiling the plugin with the optional Cargo feature `native-desktop` (GStreamer,
+cross-platform) makes the plugin **own the camera natively**: it captures once and fans out to a
 **live preview** (JPEG frames delivered to your app) and a **native encoder** — so the
 UI is never blocked and `stopRecording()` does not freeze the window (the WebKitGTK
 problem). Query availability with `getCapabilities().supportsNativeRecording`.
@@ -224,9 +224,10 @@ await startRecording()
 const video = await stopRecording() // { path, duration }
 ```
 
-- Enabling the feature requires the platform dev libraries: on Linux,
-  `libgstreamer1.0-dev` and `libgstreamer-plugins-base1.0-dev` (plus runtime plugins
-  for `pipewiresrc`, `x264enc`, `mp4mux` and AAC).
+- Enabling the feature requires GStreamer dev libraries for your platform (on Linux,
+  `libgstreamer1.0-dev` and `libgstreamer-plugins-base1.0-dev`) plus runtime plugins
+  for the source (`pipewiresrc`/`v4l2src`, `mfvideosrc`/`ksvideosrc`, `avfvideosrc`),
+  `x264enc`, `mp4mux` and AAC; on Windows/macOS install the GStreamer distribution.
 - With the native backend active, `getPreviewStream()` returns `null` (there is no
   webview `MediaStream`); render the frames in a `<canvas>` instead.
 - `capture()` returns the most recent native preview frame as a base64 data URL
