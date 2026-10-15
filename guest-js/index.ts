@@ -12,11 +12,24 @@ export { convertFileSrc }
 export type CameraDirection = 'front' | 'back'
 export type FlashMode = 'on' | 'off' | 'auto'
 
+/** A preview frame delivered by the native desktop backend. */
+export interface PreviewFrame {
+  /** Base64-encoded JPEG image data. */
+  data: string
+  width: number
+  height: number
+}
+
 export interface StartPreviewOptions {
   camera?: CameraDirection
   /** Specific camera/lens id from `getAvailableCameras()`. Takes precedence over `camera`. */
   cameraId?: string
   windowed?: boolean
+  /**
+   * Desktop native backend only: receives live preview frames to render in a
+   * `<canvas>`. Ignored by the webview fallback and on mobile.
+   */
+  onFrame?: Channel<PreviewFrame>
 }
 
 export type PhotoFormat = 'jpeg' | 'png' | 'heif'
@@ -137,6 +150,8 @@ export interface CameraCapabilities {
   whiteBalanceModes?: WhiteBalanceMode[]
   /** Whether an arbitrary color temperature (Kelvin) can be applied. */
   supportsWhiteBalanceTemperature?: boolean
+  /** Whether the native desktop camera backend is available (desktop). */
+  supportsNativeRecording?: boolean
   photoResolutions?: Resolution[]
   photoAspects?: string[]
   videoQualities?: VideoQuality[]
@@ -200,6 +215,7 @@ let activeStream: MediaStream | null = null
 let activeVideo: HTMLVideoElement | null = null
 let mediaRecorder: MediaRecorder | null = null
 let recordingAudioStream: MediaStream | null = null
+let nativeRecordingPath: string | null = null
 let recordedChunks: Blob[] = []
 let recordedBytes = 0
 let recordingStartedAt = 0
@@ -382,6 +398,10 @@ export async function startPreview(options?: StartPreviewOptions): Promise<void>
     await invoke('plugin:camera-kessdev|start_preview', { ...options })
     return
   }
+  if (options?.onFrame && (await nativeDesktopAvailable())) {
+    await invoke('plugin:camera-kessdev|native_start_preview', { onFrame: options.onFrame })
+    return
+  }
   await ensureDesktopStream(options)
 }
 
@@ -391,15 +411,21 @@ export async function stopPreview(): Promise<void> {
     await invoke('plugin:camera-kessdev|stop_preview')
     return
   }
+  if (await nativeDesktopAvailable()) {
+    await invoke('plugin:camera-kessdev|native_stop_preview')
+  }
   teardownDesktopStream()
 }
 
 /**
  * Returns the active desktop preview stream so the application can render it in
- * a `<video>` element. Returns `null` on mobile (the native preview is used).
+ * a `<video>` element. Returns `null` on mobile, and on desktop when the native
+ * camera backend is active (use `startPreview({ onFrame })` + a `<canvas>`
+ * instead).
  */
 export async function getPreviewStream(): Promise<MediaStream | null> {
   if (isMobile()) return null
+  if (await nativeDesktopAvailable()) return null
   return activeStream
 }
 
@@ -417,6 +443,21 @@ export async function getPreviewStream(): Promise<MediaStream | null> {
 export async function capture(options?: CaptureOptions): Promise<Photo> {
   if (isMobile()) {
     return await invoke<Photo>('plugin:camera-kessdev|capture', { ...options })
+  }
+  if (await nativeDesktopAvailable()) {
+    const frame = await invoke<PreviewFrame | null>('plugin:camera-kessdev|native_capture')
+    if (!frame) {
+      throw new Error('No preview frame available. Call startPreview({ onFrame }) first.')
+    }
+    const dataUrl = `data:image/jpeg;base64,${frame.data}`
+    return {
+      dataUrl,
+      width: frame.width,
+      height: frame.height,
+      orientation: 1,
+      format: 'jpeg',
+      thumbnail: dataUrl
+    }
   }
   return captureDesktopFrame(options)
 }
@@ -538,6 +579,13 @@ export async function getAvailableCameras(): Promise<CameraInfo[]> {
   return enumerateDesktopCameras()
 }
 
+/** Whether the native desktop camera backend is available for this build. */
+function nativeDesktopAvailable(): Promise<boolean> {
+  return Promise.resolve(invoke<boolean>('plugin:camera-kessdev|native_desktop_available'))
+    .then((value) => value === true)
+    .catch(() => false)
+}
+
 /**
  * Returns the declarative capabilities of a camera.
  *
@@ -550,7 +598,9 @@ export async function getCapabilities(cameraId?: string): Promise<CameraCapabili
   if (isMobile()) {
     return await invoke<CameraCapabilities>('plugin:camera-kessdev|get_capabilities', { cameraId })
   }
-  return desktopCapabilities(cameraId)
+  const caps = desktopCapabilities(cameraId)
+  caps.supportsNativeRecording = await nativeDesktopAvailable()
+  return caps
 }
 
 // ---------------------------------------------------------------------------
@@ -622,6 +672,11 @@ export async function startRecording(options?: StartRecordingOptions): Promise<v
     return
   }
 
+  if (await nativeDesktopAvailable()) {
+    nativeRecordingPath = await invoke<string>('plugin:camera-kessdev|native_start_recording', {})
+    return
+  }
+
   // Reuse the active preview video track when possible so the preview is not
   // invalidated (which would freeze the app's <video> element).
   let videoTrack = activeStream?.getVideoTracks()[0]
@@ -689,6 +744,13 @@ export async function startRecording(options?: StartRecordingOptions): Promise<v
 export async function stopRecording(options?: StopRecordingOptions): Promise<Video> {
   if (isMobile()) {
     return await invoke<Video>('plugin:camera-kessdev|stop_recording', { ...options })
+  }
+
+  if (nativeRecordingPath) {
+    const path = nativeRecordingPath
+    nativeRecordingPath = null
+    const duration = await invoke<number>('plugin:camera-kessdev|native_stop_recording')
+    return { path, duration }
   }
 
   if (!mediaRecorder) {

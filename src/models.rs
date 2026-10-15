@@ -247,6 +247,16 @@ pub struct RecordingProgress {
   pub bitrate: Option<f64>,
 }
 
+/// A preview frame delivered to the frontend by the native desktop backend.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviewFrame {
+  /// Base64-encoded JPEG image data.
+  pub data: String,
+  pub width: u32,
+  pub height: u32,
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;

@@ -26,7 +26,9 @@ jobs:
             librsvg2-dev \
             libxdo-dev \
             libssl-dev \
-            build-essential
+            build-essential \
+            libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev
 
       - name: format
         run: cargo fmt --all -- --check
@@ -36,6 +38,12 @@ jobs:
 
       - name: test
         run: cargo test
+
+      - name: clippy (native desktop)
+        run: cargo clippy --features native-desktop --all-targets -- -D warnings
+
+      - name: test (native desktop)
+        run: cargo test --features native-desktop
 
       - name: check mobile target
         run: cargo check --target aarch64-linux-android

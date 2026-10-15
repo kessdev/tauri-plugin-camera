@@ -367,6 +367,78 @@
           "markdownDescription": "Denies the get_zoom command without any pre-configured scope."
         },
         {
+          "description": "Enables the native_capture command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-native-capture",
+          "markdownDescription": "Enables the native_capture command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the native_capture command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-native-capture",
+          "markdownDescription": "Denies the native_capture command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the native_desktop_available command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-native-desktop-available",
+          "markdownDescription": "Enables the native_desktop_available command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the native_desktop_available command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-native-desktop-available",
+          "markdownDescription": "Denies the native_desktop_available command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the native_start_preview command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-native-start-preview",
+          "markdownDescription": "Enables the native_start_preview command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the native_start_preview command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-native-start-preview",
+          "markdownDescription": "Denies the native_start_preview command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the native_start_recording command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-native-start-recording",
+          "markdownDescription": "Enables the native_start_recording command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the native_start_recording command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-native-start-recording",
+          "markdownDescription": "Denies the native_start_recording command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the native_stop_preview command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-native-stop-preview",
+          "markdownDescription": "Enables the native_stop_preview command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the native_stop_preview command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-native-stop-preview",
+          "markdownDescription": "Denies the native_stop_preview command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the native_stop_recording command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-native-stop-recording",
+          "markdownDescription": "Enables the native_stop_recording command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the native_stop_recording command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-native-stop-recording",
+          "markdownDescription": "Denies the native_stop_recording command without any pre-configured scope."
+        },
+        {
           "description": "Enables the open_app_settings command without any pre-configured scope.",
           "type": "string",
           "const": "allow-open-app-settings",
@@ -547,10 +619,10 @@
           "markdownDescription": "Denies the stop_recording command without any pre-configured scope."
         },
         {
-          "description": "Default permissions for the camera plugin\n#### This default permission set includes:\n\n- `allow-start-preview`\n- `allow-stop-preview`\n- `allow-capture`\n- `allow-flip-camera`\n- `allow-set-flash`\n- `allow-set-zoom`\n- `allow-get-zoom`\n- `allow-set-torch`\n- `allow-set-focus-point`\n- `allow-set-focus-mode`\n- `allow-set-exposure-compensation`\n- `allow-set-exposure-mode`\n- `allow-set-white-balance`\n- `allow-get-available-cameras`\n- `allow-get-capabilities`\n- `allow-start-recording`\n- `allow-stop-recording`\n- `allow-save-to-gallery`\n- `allow-request-permissions`\n- `allow-check-permissions`\n- `allow-open-app-settings`",
+          "description": "Default permissions for the camera plugin\n#### This default permission set includes:\n\n- `allow-start-preview`\n- `allow-stop-preview`\n- `allow-capture`\n- `allow-flip-camera`\n- `allow-set-flash`\n- `allow-set-zoom`\n- `allow-get-zoom`\n- `allow-set-torch`\n- `allow-set-focus-point`\n- `allow-set-focus-mode`\n- `allow-set-exposure-compensation`\n- `allow-set-exposure-mode`\n- `allow-set-white-balance`\n- `allow-get-available-cameras`\n- `allow-get-capabilities`\n- `allow-start-recording`\n- `allow-stop-recording`\n- `allow-save-to-gallery`\n- `allow-request-permissions`\n- `allow-check-permissions`\n- `allow-open-app-settings`\n- `allow-native-desktop-available`\n- `allow-native-start-preview`\n- `allow-native-stop-preview`\n- `allow-native-start-recording`\n- `allow-native-stop-recording`\n- `allow-native-capture`",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Default permissions for the camera plugin\n#### This default permission set includes:\n\n- `allow-start-preview`\n- `allow-stop-preview`\n- `allow-capture`\n- `allow-flip-camera`\n- `allow-set-flash`\n- `allow-set-zoom`\n- `allow-get-zoom`\n- `allow-set-torch`\n- `allow-set-focus-point`\n- `allow-set-focus-mode`\n- `allow-set-exposure-compensation`\n- `allow-set-exposure-mode`\n- `allow-set-white-balance`\n- `allow-get-available-cameras`\n- `allow-get-capabilities`\n- `allow-start-recording`\n- `allow-stop-recording`\n- `allow-save-to-gallery`\n- `allow-request-permissions`\n- `allow-check-permissions`\n- `allow-open-app-settings`"
+          "markdownDescription": "Default permissions for the camera plugin\n#### This default permission set includes:\n\n- `allow-start-preview`\n- `allow-stop-preview`\n- `allow-capture`\n- `allow-flip-camera`\n- `allow-set-flash`\n- `allow-set-zoom`\n- `allow-get-zoom`\n- `allow-set-torch`\n- `allow-set-focus-point`\n- `allow-set-focus-mode`\n- `allow-set-exposure-compensation`\n- `allow-set-exposure-mode`\n- `allow-set-white-balance`\n- `allow-get-available-cameras`\n- `allow-get-capabilities`\n- `allow-start-recording`\n- `allow-stop-recording`\n- `allow-save-to-gallery`\n- `allow-request-permissions`\n- `allow-check-permissions`\n- `allow-open-app-settings`\n- `allow-native-desktop-available`\n- `allow-native-start-preview`\n- `allow-native-stop-preview`\n- `allow-native-start-recording`\n- `allow-native-stop-recording`\n- `allow-native-capture`"
         }
       ]
     }

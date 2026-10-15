@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-native-stop-recording"
+description = "Enables the native_stop_recording command without any pre-configured scope."
+commands.allow = ["native_stop_recording"]
+
+[[permission]]
+identifier = "deny-native-stop-recording"
+description = "Denies the native_stop_recording command without any pre-configured scope."
+commands.deny = ["native_stop_recording"]

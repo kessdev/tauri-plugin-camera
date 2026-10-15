@@ -10,11 +10,21 @@ rust-version = "1.77.2"
 exclude = ["/examples", "/dist-js", "/guest-js", "/node_modules", "/.changes", "/.github"]
 links = "tauri-plugin-camera-kessdev"
 
+[features]
+default = []
+# Native desktop camera backend (capture -> preview frames + native encoder).
+# Off by default to avoid requiring the platform dev libraries (e.g. GStreamer
+# on Linux) for every build.
+native-desktop = ["dep:gstreamer", "dep:gstreamer-app", "dep:base64"]
+
 [dependencies]
 tauri = { version = "2.11.3" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "2"
+base64 = { version = "0.22", optional = true }
+gstreamer = { version = "0.23", optional = true }
+gstreamer-app = { version = "0.23", optional = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 webview2-com = "0.39"

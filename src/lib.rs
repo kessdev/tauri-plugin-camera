@@ -7,6 +7,8 @@ pub use models::*;
 
 #[cfg(desktop)]
 mod desktop;
+#[cfg(all(desktop, feature = "native-desktop"))]
+mod desktop_native;
 #[cfg(mobile)]
 mod mobile;
 
@@ -37,7 +39,7 @@ impl<R: Runtime, T: Manager<R>> crate::CameraExt<R> for T {
 
 /// Initializes the plugin.
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
-  Builder::new("camera-kessdev")
+  let builder = Builder::new("camera-kessdev")
     .setup(|app, api| {
       #[cfg(mobile)]
       let camera = mobile::init(app, api)?;
@@ -51,6 +53,20 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
       desktop_permissions::install(&webview);
       #[cfg(not(desktop))]
       let _ = webview;
-    })
-    .build()
+    });
+
+  #[cfg(all(desktop, feature = "native-desktop"))]
+  let builder = builder.invoke_handler(tauri::generate_handler![
+    desktop::native_desktop_available,
+    desktop_native::native_start_preview,
+    desktop_native::native_stop_preview,
+    desktop_native::native_start_recording,
+    desktop_native::native_stop_recording,
+    desktop_native::native_capture
+  ]);
+
+  #[cfg(all(desktop, not(feature = "native-desktop")))]
+  let builder = builder.invoke_handler(tauri::generate_handler![desktop::native_desktop_available]);
+
+  builder.build()
 }
