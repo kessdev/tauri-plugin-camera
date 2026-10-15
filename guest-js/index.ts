@@ -444,6 +444,21 @@ export async function capture(options?: CaptureOptions): Promise<Photo> {
   if (isMobile()) {
     return await invoke<Photo>('plugin:camera-kessdev|capture', { ...options })
   }
+  if (await nativeDesktopAvailable()) {
+    const frame = await invoke<PreviewFrame | null>('plugin:camera-kessdev|native_capture')
+    if (!frame) {
+      throw new Error('No preview frame available. Call startPreview({ onFrame }) first.')
+    }
+    const dataUrl = `data:image/jpeg;base64,${frame.data}`
+    return {
+      dataUrl,
+      width: frame.width,
+      height: frame.height,
+      orientation: 1,
+      format: 'jpeg',
+      thumbnail: dataUrl
+    }
+  }
   return captureDesktopFrame(options)
 }
 
@@ -734,8 +749,8 @@ export async function stopRecording(options?: StopRecordingOptions): Promise<Vid
   if (nativeRecordingPath) {
     const path = nativeRecordingPath
     nativeRecordingPath = null
-    await invoke('plugin:camera-kessdev|native_stop_recording')
-    return { path, duration: 0 }
+    const duration = await invoke<number>('plugin:camera-kessdev|native_stop_recording')
+    return { path, duration }
   }
 
   if (!mediaRecorder) {

@@ -30,6 +30,7 @@ Default permissions for the camera plugin
 - `allow-native-stop-preview`
 - `allow-native-start-recording`
 - `allow-native-stop-recording`
+- `allow-native-capture`
 
 ## Permission Table
 
@@ -192,6 +193,32 @@ Enables the get_zoom command without any pre-configured scope.
 <td>
 
 Denies the get_zoom command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`camera-kessdev:allow-native-capture`
+
+</td>
+<td>
+
+Enables the native_capture command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`camera-kessdev:deny-native-capture`
+
+</td>
+<td>
+
+Denies the native_capture command without any pre-configured scope.
 
 </td>
 </tr>

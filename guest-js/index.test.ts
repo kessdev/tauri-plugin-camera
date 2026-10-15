@@ -563,9 +563,20 @@ describe('desktop native backend', () => {
     await startRecording()
     expect(invokeMock).toHaveBeenNthCalledWith(2, 'plugin:camera-kessdev|native_start_recording', {})
 
-    invokeMock.mockResolvedValueOnce(undefined) // native_stop_recording
+    invokeMock.mockResolvedValueOnce(1.5) // native_stop_recording
     const video = await stopRecording()
     expect(invokeMock).toHaveBeenCalledWith('plugin:camera-kessdev|native_stop_recording')
     expect(video.path).toBe('/tmp/rec.mp4')
+    expect(video.duration).toBe(1.5)
+  })
+
+  it('capture uses the native frame when available', async () => {
+    invokeMock.mockResolvedValueOnce(true) // native_desktop_available
+    invokeMock.mockResolvedValueOnce({ data: 'AAAA', width: 640, height: 480 }) // native_capture
+    const photo = await capture()
+    expect(invokeMock).toHaveBeenNthCalledWith(2, 'plugin:camera-kessdev|native_capture')
+    expect(photo.dataUrl).toBe('data:image/jpeg;base64,AAAA')
+    expect(photo.width).toBe(640)
+    expect(photo.height).toBe(480)
   })
 })

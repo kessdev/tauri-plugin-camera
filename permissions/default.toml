@@ -27,4 +27,5 @@ permissions = [
   "allow-native-stop-preview",
   "allow-native-start-recording",
   "allow-native-stop-recording",
+  "allow-native-capture",
 ]

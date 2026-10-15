@@ -61,7 +61,8 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
     desktop_native::native_start_preview,
     desktop_native::native_stop_preview,
     desktop_native::native_start_recording,
-    desktop_native::native_stop_recording
+    desktop_native::native_stop_recording,
+    desktop_native::native_capture
   ]);
 
   #[cfg(all(desktop, not(all(target_os = "linux", feature = "native-desktop"))))]

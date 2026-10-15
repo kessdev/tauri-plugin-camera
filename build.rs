@@ -25,6 +25,7 @@ const COMMANDS: &[&str] = &[
   "native_stop_preview",
   "native_start_recording",
   "native_stop_recording",
+  "native_capture",
 ];
 
 fn main() {

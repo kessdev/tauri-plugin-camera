@@ -5,7 +5,8 @@
 //! frontend, and a recording pipeline that encodes to an MP4 file.
 #![cfg(all(target_os = "linux", feature = "native-desktop"))]
 
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use base64::Engine as _;
 use gstreamer as gst;
@@ -21,12 +22,19 @@ use crate::models::PreviewFrame;
 pub struct NativeCamera {
   preview: Mutex<Option<gst::Pipeline>>,
   recording: Mutex<Option<gst::Pipeline>>,
+  recording_started: Mutex<Option<Instant>>,
+  last_frame: Arc<Mutex<Option<PreviewFrame>>>,
 }
 
 impl NativeCamera {
   pub fn new() -> Self {
     Self::default()
   }
+}
+
+/// Elapsed seconds between two instants (kept pure for testing).
+fn duration_secs(started: Instant, now: Instant) -> f64 {
+  now.saturating_duration_since(started).as_secs_f64()
 }
 
 fn video_source() -> Result<gst::Element, String> {
@@ -78,6 +86,7 @@ impl NativeCamera {
     let appsink = sink
       .downcast::<AppSink>()
       .map_err(|_| "appsink".to_string())?;
+    let last_frame = self.last_frame.clone();
     appsink.set_callbacks(
       gstreamer_app::AppSinkCallbacks::builder()
         .new_sample(move |sink| {
@@ -95,11 +104,13 @@ impl NativeCamera {
               )
             })
             .unwrap_or((0, 0));
-          let _ = on_frame.send(PreviewFrame {
+          let frame = PreviewFrame {
             data,
             width,
             height,
-          });
+          };
+          *last_frame.lock().unwrap() = Some(frame.clone());
+          let _ = on_frame.send(frame);
           Ok(gst::FlowSuccess::Ok)
         })
         .build(),
@@ -162,14 +173,13 @@ impl NativeCamera {
       .set_state(gst::State::Playing)
       .map_err(|e| e.to_string())?;
     *guard = Some(pipeline);
+    *self.recording_started.lock().unwrap() = Some(Instant::now());
     Ok(())
   }
 
-  fn stop_recording(&self) -> Result<(), String> {
-    let pipeline = {
-      let mut guard = self.recording.lock().unwrap();
-      guard.take()
-    };
+  fn stop_recording(&self) -> Result<f64, String> {
+    let pipeline = { self.recording.lock().unwrap().take() };
+    let started = { self.recording_started.lock().unwrap().take() };
     if let Some(pipeline) = pipeline {
       // EOS finalizes the MP4 container; wait for it on GStreamer's own threads.
       let _ = pipeline.send_event(gst::event::Eos::new());
@@ -181,7 +191,11 @@ impl NativeCamera {
       }
       let _ = pipeline.set_state(gst::State::Null);
     }
-    Ok(())
+    Ok(
+      started
+        .map(|s| duration_secs(s, Instant::now()))
+        .unwrap_or(0.0),
+    )
   }
 }
 
@@ -221,10 +235,16 @@ pub async fn native_start_recording<R: Runtime>(
   Ok(target)
 }
 
-/// Stops native recording and finalizes the file.
+/// Stops native recording and finalizes the file, returning its duration (s).
 #[tauri::command]
-pub async fn native_stop_recording<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+pub async fn native_stop_recording<R: Runtime>(app: AppHandle<R>) -> Result<f64, String> {
   camera(&app).native.stop_recording()
+}
+
+/// Returns the most recent preview frame, if any (`null` when no preview).
+#[tauri::command]
+pub async fn native_capture<R: Runtime>(app: AppHandle<R>) -> Result<Option<PreviewFrame>, String> {
+  Ok(camera(&app).native.last_frame.lock().unwrap().clone())
 }
 
 fn timestamp() -> u128 {
@@ -232,4 +252,17 @@ fn timestamp() -> u128 {
     .duration_since(std::time::UNIX_EPOCH)
     .map(|d| d.as_millis())
     .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use std::time::Duration;
+
+  #[test]
+  fn duration_secs_computes_elapsed() {
+    let t0 = Instant::now();
+    let t1 = t0 + Duration::from_millis(1500);
+    assert!((duration_secs(t0, t1) - 1.5).abs() < 1e-9);
+  }
 }

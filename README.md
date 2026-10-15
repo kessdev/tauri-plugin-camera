@@ -229,6 +229,8 @@ const video = await stopRecording() // { path, duration }
   for `pipewiresrc`, `x264enc`, `mp4mux` and AAC).
 - With the native backend active, `getPreviewStream()` returns `null` (there is no
   webview `MediaStream`); render the frames in a `<canvas>` instead.
+- `capture()` returns the most recent native preview frame as a base64 data URL
+  (`Photo.dataUrl` / `Photo.thumbnail`).
 
 ### Video thumbnail
 
