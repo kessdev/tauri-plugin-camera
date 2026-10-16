@@ -149,6 +149,12 @@ impl NativeCamera {
     let asource = element("autoaudiosrc")?;
     let aconvert = element("audioconvert")?;
     let aqueue = element("queue")?;
+    // FIXME(native video): `aacenc` is hardcoded but may be missing depending on
+    // the GStreamer install (this system only ships `avenc_aac`/`voaacenc`), so
+    // `start_recording` fails with "Failed to find element factory with name
+    // 'aacenc'". Pick the first available AAC encoder (aacenc -> avenc_aac ->
+    // voaacenc -> faac/fdkaacenc) or degrade to video-only. Tracked as a
+    // follow-up for the native video subsystem rework.
     let aenc = element("aacenc")?;
     let aparse = element("aacparse")?;
 

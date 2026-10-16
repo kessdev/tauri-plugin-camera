@@ -232,6 +232,9 @@ const video = await stopRecording() // { path, duration }
   webview `MediaStream`); render the frames in a `<canvas>` instead.
 - `capture()` returns the most recent native preview frame as a base64 data URL
   (`Photo.dataUrl` / `Photo.thumbnail`).
+- Known limitation: the recording pipeline currently hardcodes the `aacenc` element,
+  so `startRecording()` fails where it is missing (e.g. only `avenc_aac`/`voaacenc`
+  installed). A selectable/degradable audio encoder is planned.
 
 ### Video thumbnail
 
